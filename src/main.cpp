@@ -9,6 +9,7 @@
 #include <vector>
 #include "World.h"
 #include "Slider.h"
+#include "UIElement.h"
 #include <thread>
 #include <string>
 
@@ -38,6 +39,40 @@ void RunSimulation(int times) {
 		}
 	}
 }
+
+void ClampWindowSize() {
+	screenWidth = GetScreenWidth();
+	screenHeight = GetScreenHeight();
+
+	screenWidthRatio = float(screenWidth) / float(absoluteWidth);
+	screenHeightRatio = float(screenHeight) / float(absoluteHeight);
+
+	bool needsResize = false;
+
+	if (screenWidth < minWidth) {
+		screenWidth = minWidth;
+		needsResize = true;
+	}
+	if (screenHeight < minHeight) {
+		screenHeight = minHeight;
+		needsResize = true;
+	}
+
+	float aspect = (float)screenWidth / screenHeight;
+	if (aspect < minAspectRatio) {
+		screenWidth = static_cast<int>(screenHeight * minAspectRatio);
+		needsResize = true;
+	}
+
+	int guiScaleWidth = screenWidth * 2 / float(minWidth);
+	int guiScaleHeight = screenHeight * 2 / float(minHeight);
+
+	guiScale = std::min(guiScaleWidth, guiScaleHeight);
+
+	if (needsResize) {
+		SetWindowSize(screenWidth, screenHeight);
+	}
+}
  
 enum State {
 	STATE_MENU_INIT,
@@ -56,9 +91,10 @@ int main() {
 	std::vector<InputField> newGameInputFields;
 	std::vector<Button> newGameButtons;
 	std::vector<Slider> newGameSliders;
+
+	std::vector<std::unique_ptr<UIElement>> UIElements;
 	
 	InitWindow(screenWidth, screenHeight, "EvolutionWORLD");
-	// InitWindow(800, 600, "EvolutionWORLD");
 
 	SetTargetFPS(FRAMES_PER_SECOND);
 	InitAudioDevice();
@@ -79,14 +115,12 @@ int main() {
 	}
 	std::cout << "Processors: " << numberOfThreads << std::endl;
 	std::unique_ptr<World> world;
+	std::unique_ptr<World> previewWorld = std::make_unique<World>();
+
 	PlayMusicStream(musicMenu);
 	while (!WindowShouldClose()) {
 
-		screenWidth = GetScreenWidth();
-		screenHeight = GetScreenHeight();
-
-		screenWidthRatio = float(screenWidth) / float(absoluteWidth);
-		screenHeightRatio = float(screenHeight) / float(absoluteHeight);
+		ClampWindowSize();
 
 		if (IsKeyPressed(KEY_M)) {
 			if (IsMusicStreamPlaying(musicMenu)) {
@@ -100,7 +134,7 @@ int main() {
 		if (IsMusicStreamPlaying(musicMenu)) {
 			UpdateMusicStream(musicMenu);
 		}
-		World previewWorld = World(); // preview world
+		
 		BeginDrawing();
 
 		switch (currentState) {
@@ -111,27 +145,25 @@ int main() {
 			mainMenuButtons.push_back(Button(0, absoluteWidth / 2, absoluteHeight / 2 - 64, 120, 24, "Create WORLD"));
 			mainMenuButtons.push_back(Button(1, absoluteWidth / 2, absoluteHeight / 2 , 120, 24, "Load WORLD"));
 			mainMenuButtons.push_back(Button(2, absoluteWidth / 2, absoluteHeight / 2 + 64, 120, 24, "Settings"));
-			mainMenuButtons.push_back(Button(3, absoluteWidth / 2, absoluteHeight / 2 + 96, 120, 24, "About"));
-			mainMenuButtons.push_back(Button(4, absoluteWidth / 2, absoluteHeight / 2 + 128, 120, 24, "Exit"));
+			mainMenuButtons.push_back(Button(3, absoluteWidth / 2, absoluteHeight / 2 + 128, 120, 24, "About"));
+			mainMenuButtons.push_back(Button(4, absoluteWidth / 2, absoluteHeight / 2 + 192, 120, 24, "Exit"));
 
 			// set up new game input fields and buttons
-			newGameButtons.clear();
-			newGameInputFields.clear();
-			newGameSliders.clear();
 
-			newGameInputFields.push_back(InputField(0, 160, 112, 130, 20, "World Name"));
-			newGameInputFields.push_back(InputField(1, 160, 192, 130, 20, "World Seed"));
-			newGameInputFields.push_back(InputField(2, 90, 272, 60, 20, "BG Color", "222222", 6));
-			newGameInputFields.push_back(InputField(3, 230, 272, 60, 20, "Grnd Color", "222222", 6));
-
-			newGameButtons.push_back(Button(0, absoluteWidth / 2, 450, 100, 25, "Create WORLD"));
-			newGameButtons.push_back(Button(1, 60, 450, 50, 25, "Back"));
-
-			newGameSliders.push_back(Slider(0, absoluteWidth - 160, 112, 130, 20, "Creature Count", 100, 2500, numOfCreatures));
-			newGameSliders.push_back(Slider(1, absoluteWidth - 160, 192, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
-			newGameSliders.push_back(Slider(2, absoluteWidth - 160, 272, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
-			newGameSliders.push_back(Slider(3, absoluteWidth - 160, 352, 130, 20, "Muscle Speed", 50, 200, ticksToSwitchMuscleStage));
-
+			UIElements.clear();
+			
+			UIElements.push_back(std::make_unique<InputField>(100, 160, 112, 130, 20, "World Name"));
+			UIElements.push_back(std::make_unique<InputField>(101, 160, 192, 130, 20, "World Seed"));
+			UIElements.push_back(std::make_unique<InputField>(102, 90, 272, 60, 20, "BG Color", "222222", 6));
+			UIElements.push_back(std::make_unique<InputField>(103, 230, 272, 60, 20, "Grnd Color", "222222", 6));
+			
+			UIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 450, 100, 25, "Create WORLD"));
+			UIElements.push_back(std::make_unique<Button>(1, 60, 450, 50, 25, "Back"));
+			
+			UIElements.push_back(std::make_unique<Slider>(200, absoluteWidth - 160, 112, 130, 20, "Creature Count", 100, 2500, numOfCreatures));
+			UIElements.push_back(std::make_unique<Slider>(201, absoluteWidth - 160, 192, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
+			UIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 272, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
+			UIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 352, 130, 20, "Muscle Speed", 50, 200, ticksToSwitchMuscleStage));
 
 			currentState = STATE_MENU;
 			break;
@@ -142,9 +174,10 @@ int main() {
 			for (int i = 0; i < mainMenuButtons.size(); i++) {
 
 				mainMenuButtons[i].draw();
-				auto clicked = mainMenuButtons[i].checkCollision();
-				if (clicked) {
-					switch (mainMenuButtons[i].buttonID) {
+				mainMenuButtons[i].tick();
+
+				if (mainMenuButtons[i].active) {
+					switch (mainMenuButtons[i].elementID) {
 					case 0: // Create World
 						currentState = STATE_CREATE;
 						break;
@@ -165,8 +198,7 @@ int main() {
 		case STATE_OPTIONS:
 			ClearBackground(LightBlueWORLD);
 			DrawTextCentered("Options", absoluteWidth / 2, 32, 2, BLACK);
-			DrawTextCentered("Press M to toggle music", absoluteWidth / 2, 64, 1, BLACK);
-			DrawTextCentered("Press B to go back", absoluteWidth / 2, 96, 1, BLACK);
+			
 			if (IsKeyPressed(KEY_B)) {
 				currentState = STATE_MENU;
 			}
@@ -175,38 +207,26 @@ int main() {
 			ClearBackground(LightBlueWORLD);
 			DrawTextCentered("Create WORLD", absoluteWidth / 2, 32, 2, BLACK);
 
-			if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-				for (int i = 0; i < newGameInputFields.size(); i++) {
-					newGameInputFields[i].active = false;
-				}
-			}
+			for (int i = 0; i < UIElements.size(); i++) {
+				UIElements[i]->tick();
+				UIElements[i]->draw();
 
-			for (int i = 0; i < newGameInputFields.size(); i++) {
-				if (newGameInputFields[i].active) {
-					newGameInputFields[i].tick();
-				}
-				newGameInputFields[i].checkCollision();
-				newGameInputFields[i].draw();
-			}
-
-			for (int i = 0; i < newGameButtons.size(); i++) {
-				newGameButtons[i].draw();
-				auto clicked = newGameButtons[i].checkCollision();
-				if (clicked) {
-					switch (newGameButtons[i].buttonID) {
+				if (UIElements[i]->active) {
+					switch (UIElements[i]->elementID) {
 					case 0: // Create World
 					{
-						int bgColor = std::stoi(newGameInputFields[2].text, nullptr, 16);
-						int grColor = std::stoi(newGameInputFields[3].text, nullptr, 16);
+						int bgColor = std::stoi(UIElements[2]->getContent(), nullptr, 16);
+						int grColor = std::stoi(UIElements[3]->getContent(), nullptr, 16);
 						Color backgroundColor = { (unsigned char)((bgColor >> 16) & 0xFF), (unsigned char)((bgColor >> 8) & 0xFF), (unsigned char)(bgColor & 0xFF), 255 };
 						Color groundColor = { (unsigned char)((grColor >> 16) & 0xFF), (unsigned char)((grColor >> 8) & 0xFF), (unsigned char)(grColor & 0xFF), 255 };
+
 						world = std::make_unique<World>(
-							newGameInputFields[0].text, // worldName
-							newGameInputFields[1].text, // worldSeed
-							newGameSliders[0].curVal, // numOfCreatures
-							newGameSliders[1].curVal, // ticksPerSecond
-							newGameSliders[2].curVal, // secondsPerSimulation
-							newGameSliders[3].curVal, // ticksToSwitchMuscleStage
+							UIElements[0]->getContent(), // worldName
+							UIElements[1]->getContent(), // worldSeed
+							std::stoi(UIElements[6]->getContent()), // numOfCreatures
+							std::stoi(UIElements[7]->getContent()), // ticksPerSecond
+							std::stoi(UIElements[8]->getContent()), // secondsPerSimulation
+							std::stoi(UIElements[9]->getContent()), // ticksToSwitchMuscleStage
 							backgroundColor,
 							groundColor
 						);
@@ -218,22 +238,19 @@ int main() {
 					{
 						currentState = STATE_MENU_INIT;
 						break;
-						}
+					}
+					default:
+					{
+						break;
+					}
 					}
 				}
-			}
-
-			for (int i = 0; i < newGameSliders.size(); i++) {
-				if (newGameSliders[i].active || newGameSliders[i].precise) {
-					newGameSliders[i].tick();
-				}
-				newGameSliders[i].checkCollision();
-				newGameSliders[i].draw();
+				
 			}
 
 			// Draw preview world
 			DrawTextCentered("Preview WORLD", absoluteWidth / 2, 100, 1, BLACK);
-			previewWorld.DrawCentered(absoluteWidth / 2, absoluteHeight / 2, 110, 110);
+			previewWorld->DrawCentered(absoluteWidth / 2, absoluteHeight / 2, 110, 110);
 			DrawRectangleCenteredLines(absoluteWidth / 2, absoluteHeight / 2, 110, 110, 2, BLACK);
 			break;
 		case STATE_GAME:
@@ -252,15 +269,7 @@ int main() {
 			
 			break;
 		}
-		if (IsKeyPressed(KEY_SPACE)) {
-			guiScale += 1;
-		}
-		if (IsKeyPressed(KEY_R)) {
-			guiScale -= 1;
-		}
 		EndDrawing();
-
-		
 	}
 	CloseWindow();
 	return 0;

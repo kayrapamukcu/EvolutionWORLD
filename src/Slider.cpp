@@ -2,12 +2,34 @@
 #include <iostream>
 #include <algorithm>
 
-void Slider::onHover()
+void Slider::draw()
 {
-	return;
+	drawRect = DrawRectangleCentered(x, y, width, height, DARKGRAY);
+	DrawRectangleCenteredLines(x, y, width, height, 1, BLACK);
+
+	float sliderStart = x * screenWidthRatio - width * guiScale / 2 + (NUB_WIDTH * guiScale) / 2;
+	float sliderEnd = x * screenWidthRatio + width * guiScale / 2 - (NUB_WIDTH * guiScale) / 2;
+
+	sliderPos = sliderStart + static_cast<float>(curVal - minVal) / (maxVal - minVal) * (sliderEnd - sliderStart);
+
+	DrawRectangle(sliderPos - NUB_WIDTH * guiScale / 2 + guiScale, y * screenHeightRatio - height * guiScale / 2 + guiScale, NUB_WIDTH * guiScale - 2*guiScale, height * guiScale - 2*guiScale, LIGHTGRAY);
+
+	DrawTextCentered(name + ": " + std::to_string(curVal), x, y, 1, WHITE);
 }
 
-void Slider::tick() {
+void Slider::tick()
+{
+	if (CheckCollisionPointRec(GetMousePosition(), drawRect)) {
+		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+			active = true;
+		}
+		else if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
+			precise = true;
+		}
+	}
+	if (!active && !precise) {
+		return;
+	}
 	if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
 		active = false;
 	}
@@ -23,7 +45,7 @@ void Slider::tick() {
 	}
 	if (precise) {
 		if (GetTime() - lastAdjustmentTime < 0.1) {
-			return; 
+			return;
 		}
 		float sliderPosClicked = sliderStart + static_cast<float>(minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * (maxVal - minVal)) - minVal) / (maxVal - minVal) * (sliderEnd - sliderStart);
 		if (sliderPos > sliderPosClicked) {
@@ -34,33 +56,9 @@ void Slider::tick() {
 		}
 		lastAdjustmentTime = GetTime();
 	}
-	
 }
 
-void Slider::draw()
+std::string Slider::getContent()
 {
-	drawRect = DrawRectangleCentered(x, y, width, height, DARKGRAY);
-	DrawRectangleCenteredLines(x, y, width, height, 1, BLACK);
-
-	float sliderStart = x * screenWidthRatio - width * guiScale / 2 + (NUB_WIDTH * guiScale) / 2;
-	float sliderEnd = x * screenWidthRatio + width * guiScale / 2 - (NUB_WIDTH * guiScale) / 2;
-
-	sliderPos = sliderStart + static_cast<float>(curVal - minVal) / (maxVal - minVal) * (sliderEnd - sliderStart);
-
-	DrawRectangle(sliderPos - NUB_WIDTH * guiScale / 2 + guiScale, y * screenHeightRatio - height * guiScale / 2 + guiScale, NUB_WIDTH * guiScale - 2*guiScale, height * guiScale - 2*guiScale, LIGHTGRAY);
-
-	DrawTextCentered(text + ": " + std::to_string(curVal), x, y, 1, WHITE);
-}
-
-void Slider::checkCollision()
-{
-	if (CheckCollisionPointRec(GetMousePosition(), drawRect)) {
-		onHover();
-		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-			active = true;
-		}
-		else if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
-			precise = true;
-		}
-	}
+	return std::to_string(curVal);
 }

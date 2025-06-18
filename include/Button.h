@@ -3,19 +3,21 @@
 #include <string>
 #include "raylib.h"
 #include "Helper.h"
+#include "UIElement.h"
 
-class Button {
+class Button : public UIElement {
 public:
-	int buttonID;
-	int x, y, width, height;
-	std::string text;
-	Rectangle drawRect;
-
-	Button(int id, int xPos, int yPos, int w, int h, const std::string& buttonText)
-		: buttonID(id), x(xPos), y(yPos), width(w), height(h), text(buttonText) {
+	Button(int id, int xPos, int yPos, int w, int h, const std::string& buttonText) {
+		elementID = id;
+		x = xPos;
+		y = yPos;
+		width = w;
+		height = h;
+		name = buttonText;
+		active = false;
 	}
-	void onHover();
-	int onClicked();
-	void draw();
-	bool checkCollision();
+
+	void draw() override;
+	void tick() override;
+	std::string getContent() override;
 };

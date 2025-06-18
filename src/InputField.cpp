@@ -1,45 +1,6 @@
 #include "InputField.h"
 #include "Helper.h"
 
-void InputField::onHover()
-{
-	return;
-}
-
-void InputField::tick()
-{
-	int key = GetCharPressed();
-
-    while (key > 0)
-    {
-        if ((key >= 32) && (key <= 125) && (text.length() < maxChars))
-        {
-			text += key;
-        }
-        key = GetCharPressed();
-    }
-
-    if (IsKeyDown(KEY_BACKSPACE))
-    {
-		if (keyPressFrameCounter == FRAMES_TO_CONTINUOUSLY_PRESS) {
-			if (text.length() > 0)
-			{
-				text.pop_back();
-			}
-		} 
-		keyPressFrameCounter--;
-		if (keyPressFrameCounter < 0) {
-			if (text.length() > 0)
-			{
-				text.pop_back();
-			}
-		}
-	}
-	else {
-		keyPressFrameCounter = FRAMES_TO_CONTINUOUSLY_PRESS;
-	}
-}
-
 void InputField::draw()
 {
 	if (active) {
@@ -56,12 +17,41 @@ void InputField::draw()
 	
 }
 
-void InputField::checkCollision()
+void InputField::tick()
 {
-	if (CheckCollisionPointRec(GetMousePosition(), drawRect)) {
-		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+	if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+		if (CheckCollisionPointRec(GetMousePosition(), drawRect)) {
 			active = true;
 		}
+		else {
+			active = false;
+		}
+	}
+	if (!active) return;
+
+	int key = GetCharPressed();
+	while (key > 0) {
+		if ((key >= 32) && (key <= 125) && (text.length() < maxChars)) {
+			text += key;
+		}
+		key = GetCharPressed();
+	}
+
+	if (IsKeyDown(KEY_BACKSPACE)) {
+		if (keyPressFrameCounter == FRAMES_TO_CONTINUOUSLY_PRESS && !text.empty()) {
+			text.pop_back();
+		}
+		keyPressFrameCounter--;
+		if (keyPressFrameCounter < 0 && !text.empty()) {
+			text.pop_back();
+		}
+	}
+	else {
+		keyPressFrameCounter = FRAMES_TO_CONTINUOUSLY_PRESS;
 	}
 }
 
+std::string InputField::getContent()
+{
+	return text;
+}

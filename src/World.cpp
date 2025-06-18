@@ -9,5 +9,5 @@ void World::Draw(int x, int y, int width, int height) {
 
 void World::DrawCentered(int x, int y, int width, int height) {
 	DrawRectangleCentered(x, y, width, height, backgroundColor);
-	DrawRectangleCentered(x, y + 4*height/5 * (guiScale-1), width, height/5, groundColor);
+	DrawRectangleCentered(x, y + 4*height/5 / screenHeightRatio, width, height/5, groundColor);
 }
