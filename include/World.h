@@ -16,7 +16,9 @@ public:
 	uint32_t numOfCreatures;
 	uint32_t ticksToSwitchMuscleStage;
 	uint32_t generation = 0; // Current generation of the world
-	std::array<Creature, 1000> creatures;
+	float drawSpeedMult;
+	float accumulatedTime = 0.0f;
+	std::unique_ptr<Creature[]> creatures;
 	std::vector<Creature> generationalCreatures; // Worst, average, and best creature of all generations
 	Color backgroundColor;
 	Color groundColor;
@@ -29,9 +31,15 @@ public:
 		ticksToSwitchMuscleStage(100),
 		backgroundColor({ 255, 196, 240, 255 }),
 		groundColor({ 1, 26, 20, 255 })
+		, drawSpeedMult(1.66f) // Default draw speed multiplier
 	{
+		rng.setSeed(worldSeed);
+		creatures = std::make_unique<Creature[]>(numOfCreatures);
+		Creature::world = this;
+		Creature::idCounter = 0;
+		InitializeWorld();
 	}
-	World(const std::string& n, const std::string& s, int tps, int sps, int nc, int ttsms, Color bc, Color gc) :
+	World(const std::string& n, const std::string& s, int nc, int tps, int sps, int ttsms, Color bc, Color gc) :
 
 		worldName(n),
 		worldSeed(returnRandomWorldSeed(s)), // Convert hex string to unsigned long long
@@ -40,8 +48,14 @@ public:
 		numOfCreatures(nc),
 		ticksToSwitchMuscleStage(ttsms),
 		backgroundColor(bc),
-		groundColor(gc)
+		groundColor(gc),
+		drawSpeedMult(tps/FRAMES_PER_SECOND)
 	{
+		rng.setSeed(worldSeed);
+		creatures = std::make_unique<Creature[]>(numOfCreatures);
+		Creature::world = this;
+		Creature::idCounter = 0;
+		InitializeWorld();
 	}
 	static unsigned int const returnRandomWorldSeed(const std::string& entered) {
 		// if the entire string is a number, return it as a seed
@@ -63,4 +77,7 @@ public:
 	}
 	void Draw(int x, int y, int width, int height);
 	void DrawCentered(int x, int y, int width, int height);
+	void DoGeneration();
+	void InitializeWorld();
+	void DrawCreature();
 };

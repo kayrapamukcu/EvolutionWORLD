@@ -105,7 +105,7 @@ int main() {
 
 	Camera2D camera = { 0 };
 	camera.target = { 0, 0 };
-	camera.offset = { (float)screenWidth / 2.0f, (float)screenHeight / 2.0f };
+	camera.offset = { 0, 0 };
 	camera.rotation = 0.0f;
 	camera.zoom = 1.0f;
 
@@ -163,7 +163,7 @@ int main() {
 			UIElements.push_back(std::make_unique<Slider>(200, absoluteWidth - 160, 112, 130, 20, "Creature Count", 100, 2500, numOfCreatures));
 			UIElements.push_back(std::make_unique<Slider>(201, absoluteWidth - 160, 192, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
 			UIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 272, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
-			UIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 352, 130, 20, "Muscle Speed", 50, 200, ticksToSwitchMuscleStage));
+			UIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 352, 130, 20, "Muscle Speed", 20, 200, ticksToSwitchMuscleStage));
 
 			currentState = STATE_MENU;
 			break;
@@ -230,7 +230,6 @@ int main() {
 							backgroundColor,
 							groundColor
 						);
-						Creature::world = world.get();
 						currentState = STATE_GAME;
 						break;
 					}
@@ -258,14 +257,29 @@ int main() {
 			ClearBackground(LIGHTGRAY);
 			
 			DrawTextB("World " + world->worldName + " ,Seed " + std::to_string(world->worldSeed) + " ,Generation " + std::to_string(world->generation), 24, 24, 1, BLACK);
-			BeginMode2D(camera);
+			
 			if (IsKeyPressed(KEY_B)) {
 				currentState = STATE_MENU_INIT;
 			}
-			
-			//world->DrawCentered(absoluteWidth / 2, absoluteHeight / 2, absoluteWidth, absoluteHeight);
+			if (IsKeyPressed(KEY_R)) {
+				world->DoGeneration();
+			}
+			if (IsKeyDown(KEY_L)) {
+				BeginMode2D(camera);
+				world->DrawCreature();
+				EndMode2D();
+			}
 
-			EndMode2D();
+			if (IsKeyPressed(KEY_C)) {
+				auto time = std::chrono::high_resolution_clock::now();
+				for (int i = 0; i < 10; i++) {
+					world->DoGeneration();
+				}
+				auto endTime = std::chrono::high_resolution_clock::now();
+				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - time);
+				std::cout << "10 generations took " << duration.count() << " ms\n";
+			}
+			//world->DrawCentered(absoluteWidth / 2, absoluteHeight / 2, absoluteWidth, absoluteHeight);
 			
 			break;
 		}

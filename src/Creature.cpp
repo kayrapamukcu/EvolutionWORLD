@@ -40,6 +40,7 @@ void Creature::initialize()
 		muscles[i].length2 = world->rng.randomFloat(80.0f, 160.0f);
 		muscles[i].strength = world->rng.randomFloat(0.2f, 1.0f);
 	}
+	tickCounter = world->ticksToSwitchMuscleStage;
 }
 
 
@@ -49,11 +50,12 @@ void Creature::tick()
     // flip between the two rest lengths
     if (--tickCounter <= 0) {
         muscleStage = !muscleStage;
-        tickCounter = ticksToSwitchMuscleStage;
+        tickCounter = world->ticksToSwitchMuscleStage;
     }
 
     constexpr float dt = 1.0f;          // your “frame” time-step
     constexpr float damping = 0.985f;   // a little drag so it settles
+	constexpr float timestepScale = 1.0f / 250.f;
 
     for (int i = 0; i < muscleCount; ++i)
     {
@@ -82,11 +84,10 @@ void Creature::tick()
         float fy = forceMag * uy;
 
         // a = F / m
-        n1.xSpeed += fx / n1.mass * dt / 250.0f;
-        n1.ySpeed += fy / n1.mass * dt / 250.0f;
-
-        n2.xSpeed += -fx / n2.mass * dt / 250.0f;
-        n2.ySpeed += -fy / n2.mass * dt / 250.0f;
+		n1.xSpeed += fx / n1.mass * dt * timestepScale;
+		n1.ySpeed += fy / n1.mass * dt * timestepScale;
+		n2.xSpeed += -fx / n2.mass * dt * timestepScale;
+		n2.ySpeed += -fy / n2.mass * dt * timestepScale;
     }
 
     // integrate positions, apply damping & simple ground collision
@@ -140,6 +141,7 @@ void Creature::reset()
 		nodes[i].ySpeed = 0;
 	}
 	muscleStage = 0;
+	tickCounter = world->ticksToSwitchMuscleStage;
 }
 
 void Creature::draw() {

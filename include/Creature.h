@@ -11,17 +11,14 @@ struct Node {
 	float friction;
 };
 struct Muscle {
-	int node1;
-	int node2;
-	float length1;
-	float length2;
+	uint16_t node1, node2;
+	float length1, length2;
 	float strength;
 };
 
 class Creature {
 public:
 	static World* world;
-
 	static int idCounter;
 	int id;
 	bool muscleStage = 0;
