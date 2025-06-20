@@ -16,7 +16,7 @@ void World::DrawCentered(int x, int y, int width, int height) {
     DrawRectangleCentered(x, y + (4 * height / 5 / screenHeightRatio) * (guiScale) / 2, width, height / 5, groundColor);
 }
 
-void World::DrawWithCreatureCentered(int index, int generation) {
+Creature* World::DrawWithCreatureCentered(int index, int generation) {
     
     Creature* creature;
     switch (index) {
@@ -30,11 +30,25 @@ void World::DrawWithCreatureCentered(int index, int generation) {
         creature = &bestGenerationalCreatures[generation];
         break;
     }
-    camera.offset = { creature->getCenterX(), 0 };
+    DrawRectangleB(0, (4 * screenHeight / 5 / screenHeightRatio), screenWidth, screenHeight / 5, groundColor);
+    // camera.target = { creature->getCenterX() - screenWidth / 2, (float)-4 * screenHeight / 5 + Creature::FLOOR_HEIGHT + (guiScale-1) * 5};
+    camera.target = { (creature->getCenterX() - (screenWidth / 2) * 2.0f / guiScale) , ((float)-4 * screenHeight / 5) * 2.0f / guiScale + Creature::FLOOR_HEIGHT };
+    camera.zoom = 0.5f * guiScale;
     BeginMode2D(camera);
+    // draw rectangles 1 meter apart (100 pixels)
+    auto atMeter = (int)creature->getCenterX() / 100;
+	for (int i = screenWidth / -100; i < screenWidth / 100; ++i) {
+        DrawRectangle(((int)creature->getCenterX() / 100) * 100 + i * 100, Creature::FLOOR_HEIGHT, 3, Creature::FLOOR_HEIGHT/2, WHITE);
+		DrawTextCenteredNoScale(std::to_string(i+atMeter), ((int)creature->getCenterX() / 100) * 100 + i * 100 + 2, 3*Creature::FLOOR_HEIGHT/2 + 10, 2, WHITE);
+	}
     creature->draw();
     EndMode2D();
-	creature->tick();
+	accumulatedTime += drawSpeedMult;
+    while (accumulatedTime > 1) {
+        creature->tick();
+        accumulatedTime--;
+    }
+	return creature;
 }
 
 void World::InitializeWorld() {

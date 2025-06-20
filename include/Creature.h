@@ -21,6 +21,7 @@ class Creature {
 public:
 	static World* world;
 	static int idCounter;
+	static int FLOOR_HEIGHT;
 	int id;
 	float fitness = 0.0f;
 	bool muscleStage = false;

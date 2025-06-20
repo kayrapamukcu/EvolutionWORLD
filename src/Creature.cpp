@@ -10,6 +10,7 @@
 
 int Creature::idCounter = 0;
 World* Creature::world = nullptr;
+int Creature::FLOOR_HEIGHT = 100; 
 
 void Creature::initialize()
 {
@@ -53,8 +54,7 @@ void Creature::tick()
         tickCounter = world->ticksToSwitchMuscleStage;
     }
 
-    constexpr float dt = 1.0f;          // your “frame” time-step
-    constexpr float damping = 0.985f;   // a little drag so it settles
+    constexpr float damping = 0.985f;
 	constexpr float timestepScale = 1.0f / 250.f;
 
     for (int i = 0; i < muscleCount; ++i)
@@ -84,34 +84,31 @@ void Creature::tick()
         float fy = forceMag * uy;
 
         // a = F / m
-		n1.xSpeed += fx / n1.mass * dt * timestepScale;
-		n1.ySpeed += fy / n1.mass * dt * timestepScale;
-		n2.xSpeed += -fx / n2.mass * dt * timestepScale;
-		n2.ySpeed += -fy / n2.mass * dt * timestepScale;
+		n1.xSpeed += fx / n1.mass * timestepScale;
+		n1.ySpeed += fy / n1.mass * timestepScale;
+		n2.xSpeed += -fx / n2.mass * timestepScale;
+		n2.ySpeed += -fy / n2.mass * timestepScale;
     }
 
     // integrate positions, apply damping & simple ground collision
     for (int i = 0; i < nodeCount; ++i) {
         Node& n = nodes[i];
 
-        // lightweight gravity (optional)
 		n.ySpeed += world->gravity / 3266.0f;
 
-        // dampen velocities so it isn’t perpetually jittery
         n.xSpeed *= damping;
         n.ySpeed *= damping;
 
         
-        n.y += n.ySpeed * dt;
+        n.y += n.ySpeed;
 
-        // simple floor at y = 200
-        if (n.y > 200.f) {
-            n.x += n.xSpeed * dt * 1/n.friction;
-            n.y = 200.f;
+        if (n.y > FLOOR_HEIGHT - n.mass * 10) {
+            n.x += n.xSpeed * 1/n.friction;
+            n.y = FLOOR_HEIGHT - n.mass * 10;
             n.ySpeed = 0.0f;
         }
         else {
-            n.x += n.xSpeed * dt;
+            n.x += n.xSpeed;
         }
     }
 }
@@ -147,7 +144,7 @@ void Creature::reset()
 void Creature::draw() {
 	for (int i = 0; i < nodeCount; ++i) {
 		Node& n = nodes[i];
-		DrawCircle(n.x,n.y,n.mass * 10 * guiScale,RED);
+		DrawCircle(n.x,n.y,n.mass * 20,RED);
 		/*DrawText(
 			std::to_string(n.mass).c_str(),
 			n.x + (400) - 10,
@@ -199,7 +196,7 @@ Creature Creature::reproduce() {
 	child.muscles[2].node1 = 2;
 	child.muscles[2].node2 = 0;*/
 	for (int i = 0; i < nodeCount; ++i) {
-		child.nodes[i].mass = std::clamp(nodes[i].mass + world->rng.randomFloat(-0.01f, 0.01f), 0.05f, 3.0f);
+		child.nodes[i].mass = std::clamp(nodes[i].mass + world->rng.randomFloat(-0.01f, 0.01f), 0.3f, 2.0f);
 		child.nodes[i].friction = std::clamp(nodes[i].friction + world->rng.randomFloat(-0.01f, 0.01f), 1.0f, 10.0f);
 	}
 	for (int i = 0; i < muscleCount; ++i) {

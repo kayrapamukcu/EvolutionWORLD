@@ -17,7 +17,8 @@ public:
 	int ticksToSwitchMuscleStage;
 	int gravity;
 	int generation = -1; // Current generation of the world
-	float drawSpeedMult;
+	int viewGeneration = 0;
+	float drawSpeedMult = 1.66f;
 	float accumulatedTime = 0.0f;
 	std::unique_ptr<Creature[]> creatures;
 
@@ -62,7 +63,7 @@ public:
 		ticksToSwitchMuscleStage(ttsms),
 		backgroundColor(bc),
 		groundColor(gc),
-		drawSpeedMult(tps/FRAMES_PER_SECOND)
+		drawSpeedMult((float)tps/(float)FRAMES_PER_SECOND)
 	{
 		rng.setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
@@ -103,5 +104,5 @@ public:
 	void DoGeneration();
 	void InitializeWorld();
 	void DrawCreature();
-	void DrawWithCreatureCentered(int index, int generation);
+	Creature* DrawWithCreatureCentered(int index, int generation);
 };

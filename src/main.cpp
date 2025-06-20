@@ -12,6 +12,7 @@
 #include "UIElement.h"
 #include <thread>
 #include <string>
+#include <format>
 
 void ClampWindowSize() {
 	screenWidth = GetScreenWidth();
@@ -85,8 +86,6 @@ int main() {
 	SetMusicVolume(musicMenu, 0.5f);
 	SetMusicPitch(musicMenu, 0.0f);
 
-	
-
 	numberOfThreads = std::thread::hardware_concurrency();
 	if (numberOfThreads == 0) {
 		numberOfThreads = 1;
@@ -96,19 +95,20 @@ int main() {
 	std::unique_ptr<World> previewWorld = std::make_unique<World>();
 
 	int creatureIndexToBeDrawn = 0;
-	PlayMusicStream(musicMenu);
+	float watchTime = 0.0f;
+	
 	while (!WindowShouldClose()) {
 
 		ClampWindowSize();
 
-		if (IsKeyPressed(KEY_M)) {
+		/*if (IsKeyPressed(KEY_M)) {
 			if (IsMusicStreamPlaying(musicMenu)) {
 				PauseMusicStream(musicMenu);
 			}
 			else {
 				PlayMusicStream(musicMenu);
 			}
-		}
+		}*/
 
 		if (IsMusicStreamPlaying(musicMenu)) {
 			UpdateMusicStream(musicMenu);
@@ -119,6 +119,7 @@ int main() {
 		switch (currentState) {
 		case STATE_MENU_INIT:
 			//set up menu buttons
+			PlayMusicStream(musicMenu);
 			mainMenuButtons.clear();
 
 			mainMenuButtons.push_back(Button(0, absoluteWidth / 2, absoluteHeight / 2 - 64, 120, 24, "Create WORLD"));
@@ -143,18 +144,22 @@ int main() {
 			createMenuUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth - 160, 192, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
 			createMenuUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 272, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
 			createMenuUIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 352, 130, 20, "Muscle Speed", 20, 200, ticksToSwitchMuscleStage));
-			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 432, 130, 20, "Gravity", 20, 500, gravityConst));
+			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 432, 130, 20, "Gravity", 20, 1000, gravityConst));
 
-			ingameUIElements.push_back(std::make_unique<Button>(0, 137, absoluteHeight - 50, 60, 30, "Back"));
-			ingameUIElements.push_back(std::make_unique<Button>(1, 277, absoluteHeight - 50, 60, 30, "Save"));
-			ingameUIElements.push_back(std::make_unique<Button>(2, 457, absoluteHeight - 50, 100, 30, "Next Gen"));
-			ingameUIElements.push_back(std::make_unique<Button>(3, 677, absoluteHeight - 50, 100, 30, "Do Gens Cont."));
+			// ingame UI elements setup
 
-			ingameUIElements.push_back(std::make_unique<Button>(4, 150, absoluteHeight - 120, 120, 30, "Watch Worst Crtr"));
+			ingameUIElements.clear();
+
+			ingameUIElements.push_back(std::make_unique<Button>(0, 144, absoluteHeight - 34, 120, 14, "Back"));
+			ingameUIElements.push_back(std::make_unique<Button>(1, 144, absoluteHeight - 66, 120, 14, "Save"));
+			ingameUIElements.push_back(std::make_unique<Button>(2, 427, absoluteHeight - 50, 120, 30, "Next Gen"));
+			ingameUIElements.push_back(std::make_unique<Button>(3, 710, absoluteHeight - 50, 120, 30, "Do Gens Cont."));
+
+			ingameUIElements.push_back(std::make_unique<Button>(4, 144, absoluteHeight - 120, 120, 30, "Watch Worst Crtr"));
 			ingameUIElements.push_back(std::make_unique<Button>(5, 427, absoluteHeight - 120, 120, 30, "Watch Avg Crtr"));
-			ingameUIElements.push_back(std::make_unique<Button>(6, 704, absoluteHeight - 120, 120, 30, "Watch Best Crtr"));
+			ingameUIElements.push_back(std::make_unique<Button>(6, 710, absoluteHeight - 120, 120, 30, "Watch Best Crtr"));
 
-			ingameUIElements.push_back(std::make_unique<Slider>(200, 257, 20, 160, 30, "View Generation", 0, 1, 0));
+			ingameUIElements.push_back(std::make_unique<Slider>(200, 204, 250, 180, 30, "View Generation", 0, 1, 0));
 
 
 			currentState = STATE_MENU;
@@ -207,6 +212,10 @@ int main() {
 					switch (createMenuUIElements[i]->elementID) {
 					case 0: // Create World
 					{
+						if (createMenuUIElements[0]->getContent().empty()) {
+							notices.push_back({ "World name cannot be empty!", 3.0f });
+							break;
+						}
 						int bgColor, grColor;
 						try {
 							bgColor = std::stoi(createMenuUIElements[2]->getContent(), nullptr, 16);
@@ -240,6 +249,7 @@ int main() {
 							groundColor
 						);
 						currentState = STATE_GAME;
+						StopMusicStream(musicMenu);
 						break;
 					}
 					case 1: // Back
@@ -263,11 +273,13 @@ int main() {
 			break;
 		case STATE_GAME:
 
+			
 			ClearBackground(BeigeWORLD);
-			DrawTextB("Generation " + std::to_string(world->generation), 24, 24, 2, BLACK);
-			DrawTextB("Worst fitness: " + std::to_string(world->worstGenerationalCreatures[world->generation].fitness), 24, 72, 1, BLACK);
-			DrawTextB("Average fitness: " + std::to_string(world->averageGenerationalCreatures[world->generation].fitness), 24, 96, 1, BLACK);
-			DrawTextB("Best fitness: " + std::to_string(world->bestGenerationalCreatures[world->generation].fitness), 24, 120, 1, BLACK);
+			DrawTextB("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 24, 24, 1, BLACK);
+			DrawTextB("Generation: " + std::to_string(world->generation), 24, 48, 2, BLACK);
+			DrawTextB(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->generation].fitness / 100), 24, 96, 1, BLACK);
+			DrawTextB(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->generation].fitness / 100), 24, 120, 1, BLACK);
+			DrawTextB(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->generation].fitness / 100), 24, 144, 1, BLACK);
 			
 			for (int i = 0; i < ingameUIElements.size(); i++) {
 				ingameUIElements[i]->tick();
@@ -305,14 +317,7 @@ int main() {
 					}
 				}
 			}
-
-			if (IsKeyPressed(KEY_B)) {
-				currentState = STATE_MENU_INIT;
-			}
-			if (IsKeyPressed(KEY_R)) {
-				world->DoGeneration();
-			}
-
+			
 			if (IsKeyPressed(KEY_C)) {
 				auto time = std::chrono::high_resolution_clock::now();
 				for (int i = 0; i < 100; i++) {
@@ -325,23 +330,27 @@ int main() {
 			break;
 		case STATE_DRAW_CREATURE:
 			ClearBackground(world->backgroundColor);
-			world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->generation);
+			auto creature = world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->generation);
+
+			DrawTextB(std::format("Watching creature #{:}",creature->id), 24, 24, 1, BLACK);
+			DrawTextB(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), 24, 48, 1, BLACK);
+			if (watchTime > world->secondsPerSimulation) {
+				DrawTextB(std::format("Seconds: {:.2f}", watchTime), 24, 72, 1, RED);
+			}
+			else {
+				DrawTextB(std::format("Seconds: {:.2f}", watchTime), 24, 72, 1, BLACK);
+			}
+
+			watchTime += GetFrameTime();
+
 			if (IsKeyPressed(KEY_B)) {
-				Creature* creature;
-				switch (creatureIndexToBeDrawn) {
-				case 0:
-					creature = &world->worstGenerationalCreatures[world->generation];
-					break;
-				case 1:
-					creature = &world->averageGenerationalCreatures[world->generation];
-					break;
-				case 2:
-					creature = &world->bestGenerationalCreatures[world->generation];
-					break;
-				}
+				watchTime = 0.0f;
 				creature->reset();
 				currentState = STATE_GAME;
 			}
+
+			DrawTextB("Press B to go back!", 20, absoluteHeight - 32, 1, WHITE);
+
 			break;
 		}
 
