@@ -9,9 +9,10 @@ struct Node {
 	float xSpeed, ySpeed;
 	float mass;
 	float friction;
+	
 };
 struct Muscle {
-	uint16_t node1, node2;
+	uint8_t node1, node2;
 	float length1, length2;
 	float strength;
 };
@@ -21,7 +22,8 @@ public:
 	static World* world;
 	static int idCounter;
 	int id;
-	bool muscleStage = 0;
+	float fitness = 0.0f;
+	bool muscleStage = false;
 	Node nodes[3];
 	Muscle muscles[3];
 
@@ -29,7 +31,7 @@ public:
 	void draw();
 	void initialize();
 	void tick();
-	float getCenterX();
+	const float getCenterX() const;
 	Creature reproduce();
 private:
 	int tickCounter = ticksToSwitchMuscleStage;

@@ -15,11 +15,11 @@ void Creature::initialize()
 {
 	id = idCounter++;
 
-	nodes[0].x = 0;
+	nodes[0].x = -60;
 	nodes[0].y = 0;
-	nodes[1].x = 60;
+	nodes[1].x = 0;
 	nodes[1].y = 80;
-	nodes[2].x = 120;
+	nodes[2].x = 60;
 	nodes[2].y = 0;
 
 	muscles[0].node1 = 0;
@@ -95,7 +95,7 @@ void Creature::tick()
         Node& n = nodes[i];
 
         // lightweight gravity (optional)
-        n.ySpeed += 0.03f;
+		n.ySpeed += world->gravity / 3266.0f;
 
         // dampen velocities so it isn’t perpetually jittery
         n.xSpeed *= damping;
@@ -116,7 +116,7 @@ void Creature::tick()
     }
 }
 
-float Creature::getCenterX()
+const float Creature::getCenterX() const
 {
 	float centerX = 0;
 	for (int i = 0; i < nodeCount; ++i) {
@@ -129,11 +129,11 @@ float Creature::getCenterX()
 
 void Creature::reset()
 {
-	nodes[0].x = 0;
+	nodes[0].x = -60;
 	nodes[0].y = 0;
-	nodes[1].x = 60;
+	nodes[1].x = 0;
 	nodes[1].y = 80;
-	nodes[2].x = 120;
+	nodes[2].x = 60;
 	nodes[2].y = 0;
 	for (int i = 0; i < nodeCount; ++i) {
 		
@@ -147,12 +147,8 @@ void Creature::reset()
 void Creature::draw() {
 	for (int i = 0; i < nodeCount; ++i) {
 		Node& n = nodes[i];
-		DrawCircle(
-			n.x + (400),
-			n.y + (300),
-			n.mass * 20,
-			RED);
-		DrawText(
+		DrawCircle(n.x,n.y,n.mass * 10 * guiScale,RED);
+		/*DrawText(
 			std::to_string(n.mass).c_str(),
 			n.x + (400) - 10,
 			n.y + (300) - 10,
@@ -163,16 +159,16 @@ void Creature::draw() {
 			n.x + (400) - 10,
 			n.y + (300) + 10,
 			10,
-			PINK);
+			PINK);*/
 	}
 	for (int i = 0; i < muscleCount; i++) {
 		DrawLine(
-			nodes[muscles[i].node1].x + (400),
-			nodes[muscles[i].node1].y + (300), 
-			nodes[muscles[i].node2].x + (400),
-			nodes[muscles[i].node2].y + (300), 
+			nodes[muscles[i].node1].x,
+			nodes[muscles[i].node1].y, 
+			nodes[muscles[i].node2].x,
+			nodes[muscles[i].node2].y, 
 			BLUE);
-		DrawText(
+		/*DrawText(
 			std::to_string(muscles[i].length1).c_str(),
 			(nodes[muscles[i].node1].x + nodes[muscles[i].node2].x) / 2 + (400) - 10,
 			(nodes[muscles[i].node1].y + nodes[muscles[i].node2].y) / 2 + (300) - 10,
@@ -189,19 +185,19 @@ void Creature::draw() {
 			(nodes[muscles[i].node1].x + nodes[muscles[i].node2].x) / 2 + (400) - 10,
 			(nodes[muscles[i].node1].y + nodes[muscles[i].node2].y) / 2 + (300) + 30,
 			10,
-			GRAY);
+			GRAY);*/
 	}
  }
 
 Creature Creature::reproduce() {
 	Creature child;
 	child.initialize();
-	child.muscles[0].node1 = 0;
+	/*child.muscles[0].node1 = 0;
 	child.muscles[0].node2 = 1;
 	child.muscles[1].node1 = 1;
 	child.muscles[1].node2 = 2;
 	child.muscles[2].node1 = 2;
-	child.muscles[2].node2 = 0;
+	child.muscles[2].node2 = 0;*/
 	for (int i = 0; i < nodeCount; ++i) {
 		child.nodes[i].mass = std::clamp(nodes[i].mass + world->rng.randomFloat(-0.01f, 0.01f), 0.05f, 3.0f);
 		child.nodes[i].friction = std::clamp(nodes[i].friction + world->rng.randomFloat(-0.01f, 0.01f), 1.0f, 10.0f);

@@ -11,17 +11,23 @@ public:
 	RNG rng;
 	std::string worldName;
 	uint32_t worldSeed;
-	uint32_t ticksPerSecond;
-	uint32_t secondsPerSimulation;
-	uint32_t numOfCreatures;
-	uint32_t ticksToSwitchMuscleStage;
-	uint32_t generation = 0; // Current generation of the world
+	int ticksPerSecond;
+	int secondsPerSimulation;
+	int numOfCreatures;
+	int ticksToSwitchMuscleStage;
+	int gravity;
+	int generation = -1; // Current generation of the world
 	float drawSpeedMult;
 	float accumulatedTime = 0.0f;
 	std::unique_ptr<Creature[]> creatures;
-	std::vector<Creature> generationalCreatures; // Worst, average, and best creature of all generations
+
+	std::vector<Creature> worstGenerationalCreatures;
+	std::vector<Creature> averageGenerationalCreatures;
+	std::vector<Creature> bestGenerationalCreatures;
+
 	Color backgroundColor;
 	Color groundColor;
+	Camera2D camera = { 0 };
 	World() :
 		worldName("Default"),
 		worldSeed(0),
@@ -29,6 +35,7 @@ public:
 		secondsPerSimulation(15),
 		numOfCreatures(1000),
 		ticksToSwitchMuscleStage(100),
+		gravity(98),
 		backgroundColor({ 255, 196, 240, 255 }),
 		groundColor({ 1, 26, 20, 255 })
 		, drawSpeedMult(1.66f) // Default draw speed multiplier
@@ -38,11 +45,17 @@ public:
 		Creature::world = this;
 		Creature::idCounter = 0;
 		InitializeWorld();
+		camera.offset = { 0, 0 };
+		camera.target = { 0, 0 };
+		camera.rotation = 0.0f;
+		camera.zoom = 1.0f;
+
 	}
-	World(const std::string& n, const std::string& s, int nc, int tps, int sps, int ttsms, Color bc, Color gc) :
+	World(const std::string& n, const std::string& s, int grav, int nc, int tps, int sps, int ttsms, Color bc, Color gc) :
 
 		worldName(n),
 		worldSeed(returnRandomWorldSeed(s)), // Convert hex string to unsigned long long
+		gravity(grav),
 		ticksPerSecond(tps),
 		secondsPerSimulation(sps),
 		numOfCreatures(nc),
@@ -56,6 +69,10 @@ public:
 		Creature::world = this;
 		Creature::idCounter = 0;
 		InitializeWorld();
+		camera.offset = { 0, 0 };
+		camera.target = { 0, 0 };
+		camera.rotation = 0.0f;
+		camera.zoom = 1.0f;
 	}
 	static unsigned int const returnRandomWorldSeed(const std::string& entered) {
 		// if the entire string is a number, return it as a seed
@@ -63,7 +80,10 @@ public:
 		// if empty, return a random seed
 		
 		if (entered.empty()) {
-			return GetRandomValue(0, UINT32_MAX);
+			std::random_device rd;
+			std::mt19937 gen(rd());
+			std::uniform_int_distribution<unsigned int> dis(0, UINT32_MAX);
+			return dis(gen);
 		}
 		try {
 			return (std::stoull(entered, nullptr, 10) % UINT32_MAX);
@@ -72,7 +92,10 @@ public:
 			return std::hash<std::string>{}(entered) % UINT32_MAX;
 		}
 		catch (const std::exception&) {
-			return GetRandomValue(0, UINT32_MAX);
+			std::random_device rd;
+			std::mt19937 gen(rd());
+			std::uniform_int_distribution<unsigned int> dis(0, UINT32_MAX);
+			return dis(gen);
 		}
 	}
 	void Draw(int x, int y, int width, int height);
@@ -80,4 +103,5 @@ public:
 	void DoGeneration();
 	void InitializeWorld();
 	void DrawCreature();
+	void DrawWithCreatureCentered(int index, int generation);
 };

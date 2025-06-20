@@ -26,10 +26,10 @@ inline constexpr int secondsPerSimulation = 15;
 inline constexpr int nodeCount = 3;
 inline constexpr int muscleCount = 3;
 inline constexpr int ticksToSwitchMuscleStage = 50;
-
+inline constexpr int gravityConst = 98;
 inline constexpr int numOfCreatures = 1000;
 
-inline constexpr auto versionString = "v0.2.0";
+inline constexpr auto versionString = "v0.9.9";
 
 extern Font defaultFont;
 
@@ -39,6 +39,7 @@ inline int guiScale = 2;
 
 inline constexpr Color PinkWORLD = { 255 , 196 , 240 , 255 };
 inline constexpr Color LightBlueWORLD = { 173 , 216 , 230 , 255 };
+inline constexpr Color BeigeWORLD = { 240 , 188 , 120 , 255 };
 
 // helper functions
 
