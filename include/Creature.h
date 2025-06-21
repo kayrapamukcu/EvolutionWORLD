@@ -34,6 +34,10 @@ public:
 	void tick();
 	const float getCenterX() const;
 	Creature reproduce();
+
+	static float minNodeFriction;
+	static float maxNodeFriction;
+
 private:
 	int tickCounter = ticksToSwitchMuscleStage;
 };

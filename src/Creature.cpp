@@ -11,6 +11,8 @@
 int Creature::idCounter = 0;
 World* Creature::world = nullptr;
 int Creature::FLOOR_HEIGHT = 100; 
+float Creature::minNodeFriction = 1.0f;
+float Creature::maxNodeFriction = 10.0f;
 
 void Creature::initialize()
 {
@@ -142,21 +144,12 @@ void Creature::reset()
 }
 
 void Creature::draw() {
+	const float frictionVariation = (maxNodeFriction - minNodeFriction);
+	
 	for (int i = 0; i < nodeCount; ++i) {
 		Node& n = nodes[i];
-		DrawCircle(n.x,n.y,n.mass * 20,RED);
-		/*DrawText(
-			std::to_string(n.mass).c_str(),
-			n.x + (400) - 10,
-			n.y + (300) - 10,
-			10,
-			PINK);
-		DrawText(
-			std::to_string(n.friction).c_str(),
-			n.x + (400) - 10,
-			n.y + (300) + 10,
-			10,
-			PINK);*/
+		Color nodeColor = { 50 + 205 - 205 * (n.friction - minNodeFriction) / frictionVariation, 255 - 255 * (n.friction - minNodeFriction) / frictionVariation , 255 - 255 * (n.friction - minNodeFriction) / frictionVariation , 255};
+		DrawCircle(n.x,n.y,n.mass * 20, nodeColor);
 	}
 	for (int i = 0; i < muscleCount; i++) {
 		DrawLine(
@@ -165,39 +158,15 @@ void Creature::draw() {
 			nodes[muscles[i].node2].x,
 			nodes[muscles[i].node2].y, 
 			BLUE);
-		/*DrawText(
-			std::to_string(muscles[i].length1).c_str(),
-			(nodes[muscles[i].node1].x + nodes[muscles[i].node2].x) / 2 + (400) - 10,
-			(nodes[muscles[i].node1].y + nodes[muscles[i].node2].y) / 2 + (300) - 10,
-			10,
-			GRAY);
-		DrawText(
-			std::to_string(muscles[i].length2).c_str(),
-			(nodes[muscles[i].node1].x + nodes[muscles[i].node2].x) / 2 + (400) - 10,
-			(nodes[muscles[i].node1].y + nodes[muscles[i].node2].y) / 2 + (300) + 10,
-			10,
-			GRAY);
-		DrawText(
-			std::to_string(muscles[i].strength).c_str(),
-			(nodes[muscles[i].node1].x + nodes[muscles[i].node2].x) / 2 + (400) - 10,
-			(nodes[muscles[i].node1].y + nodes[muscles[i].node2].y) / 2 + (300) + 30,
-			10,
-			GRAY);*/
 	}
  }
 
 Creature Creature::reproduce() {
 	Creature child;
 	child.initialize();
-	/*child.muscles[0].node1 = 0;
-	child.muscles[0].node2 = 1;
-	child.muscles[1].node1 = 1;
-	child.muscles[1].node2 = 2;
-	child.muscles[2].node1 = 2;
-	child.muscles[2].node2 = 0;*/
 	for (int i = 0; i < nodeCount; ++i) {
 		child.nodes[i].mass = std::clamp(nodes[i].mass + world->rng.randomFloat(-0.01f, 0.01f), 0.3f, 2.0f);
-		child.nodes[i].friction = std::clamp(nodes[i].friction + world->rng.randomFloat(-0.01f, 0.01f), 1.0f, 10.0f);
+		child.nodes[i].friction = std::clamp(nodes[i].friction + world->rng.randomFloat(-0.01f, 0.01f), minNodeFriction, maxNodeFriction);
 	}
 	for (int i = 0; i < muscleCount; ++i) {
 		child.muscles[i].length1 = std::clamp(muscles[i].length1 + world->rng.randomFloat(-10.0f, 10.0f), 0.0f, 500.0f);

@@ -96,6 +96,10 @@ int main() {
 
 	int creatureIndexToBeDrawn = 0;
 	float watchTime = 0.0f;
+	bool doGenerationsNonstop = false;
+
+	float frameTime = GetFrameTime();
+	float currentTime = GetTime();
 	
 	while (!WindowShouldClose()) {
 
@@ -284,9 +288,10 @@ int main() {
 			for (int i = 0; i < ingameUIElements.size(); i++) {
 				ingameUIElements[i]->tick();
 				ingameUIElements[i]->draw();
-				if (ingameUIElements[i]->active) {
+				if (ingameUIElements[i]->active && !doGenerationsNonstop) {
 					switch (ingameUIElements[i]->elementID) {
 					case 0: // Main Menu
+						notices.clear();
 						currentState = STATE_MENU_INIT;
 						break;
 					case 1: // Save
@@ -296,7 +301,8 @@ int main() {
 						world->DoGeneration();
 						break;
 					case 3: // Do Generations Nonstop
-						// set some bool to true
+						SetTargetFPS(0);
+						doGenerationsNonstop = true;
 						notices.push_back({ "Doing generations nonstop; hold L to stop", 99999999.0f });
 						break;
 					case 4: // See Worst Creature
@@ -318,15 +324,16 @@ int main() {
 				}
 			}
 			
-			if (IsKeyPressed(KEY_C)) {
-				auto time = std::chrono::high_resolution_clock::now();
-				for (int i = 0; i < 100; i++) {
-					world->DoGeneration();
-				}
-				auto endTime = std::chrono::high_resolution_clock::now();
-				auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - time);
-				std::cout << "100 generations took " << duration.count() << " ms\n";
+			if (doGenerationsNonstop) {
+				world->DoGeneration();
 			}
+
+			if (IsKeyDown(KEY_L) && doGenerationsNonstop) {
+				SetTargetFPS(FRAMES_PER_SECOND);
+				doGenerationsNonstop = false;
+				notices.clear();
+			}
+			
 			break;
 		case STATE_DRAW_CREATURE:
 			ClearBackground(world->backgroundColor);
@@ -348,11 +355,14 @@ int main() {
 				creature->reset();
 				currentState = STATE_GAME;
 			}
+			
 
 			DrawTextB("Press B to go back!", 20, absoluteHeight - 32, 1, WHITE);
 
 			break;
 		}
+
+		
 
 		// Draw notices
 		for (auto it = notices.begin(); it != notices.end();) {
