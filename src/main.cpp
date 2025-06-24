@@ -97,6 +97,7 @@ int main() {
 	int creatureIndexToBeDrawn = 0;
 	float watchTime = 0.0f;
 	bool doGenerationsNonstop = false;
+	float timeForOneGen = 0.0f;
 
 	float frameTime = GetFrameTime();
 	float currentTime = GetTime();
@@ -104,15 +105,6 @@ int main() {
 	while (!WindowShouldClose()) {
 
 		ClampWindowSize();
-
-		/*if (IsKeyPressed(KEY_M)) {
-			if (IsMusicStreamPlaying(musicMenu)) {
-				PauseMusicStream(musicMenu);
-			}
-			else {
-				PlayMusicStream(musicMenu);
-			}
-		}*/
 
 		if (IsMusicStreamPlaying(musicMenu)) {
 			UpdateMusicStream(musicMenu);
@@ -122,8 +114,9 @@ int main() {
 
 		switch (currentState) {
 		case STATE_MENU_INIT:
+			if (!IsMusicStreamPlaying(musicMenu)) PlayMusicStream(musicMenu);
 			//set up menu buttons
-			PlayMusicStream(musicMenu);
+
 			mainMenuButtons.clear();
 
 			mainMenuButtons.push_back(Button(0, absoluteWidth / 2, absoluteHeight / 2 - 64, 120, 24, "Create WORLD"));
@@ -163,14 +156,14 @@ int main() {
 			ingameUIElements.push_back(std::make_unique<Button>(5, 427, absoluteHeight - 120, 120, 30, "Watch Avg Crtr"));
 			ingameUIElements.push_back(std::make_unique<Button>(6, 710, absoluteHeight - 120, 120, 30, "Watch Best Crtr"));
 
-			ingameUIElements.push_back(std::make_unique<Slider>(200, 204, 250, 180, 30, "View Generation", 0, 1, 0));
+			ingameUIElements.push_back(std::make_unique<Slider>(200, 204, 250, 180, 30, "View Generation", 0, 0, 0));
 
 
 			currentState = STATE_MENU;
 			break;
 		case STATE_MENU:
 			
-			ClearBackground( PinkWORLD ); // very light pink
+			ClearBackground( PinkWORLD );
 			DrawTextCentered("EvolutionWORLD " + std::string(versionString), absoluteWidth / 2, 32, 2, BLACK);	
 			for (int i = 0; i < mainMenuButtons.size(); i++) {
 
@@ -183,11 +176,14 @@ int main() {
 						currentState = STATE_CREATE;
 						break;
 					case 1: // Load World
+						notices.push_back({ "Saving / loading worlds is not implemented yet!", 2.0f });
 						break;
 					case 2: // Settings
-						currentState = STATE_OPTIONS;
+						notices.push_back({ "Settings are not implemented yet!", 2.0f });
+						//currentState = STATE_OPTIONS;
 						break;
 					case 3: // About
+						notices.push_back({ "About screen not implemented yet!", 2.0f });
 						break;
 					case 4: // Exit
 						CloseWindow();
@@ -238,8 +234,8 @@ int main() {
 							break;
 						}
 					
-						Color backgroundColor = { (unsigned char)((bgColor >> 16) & 0xFF), (unsigned char)((bgColor >> 8) & 0xFF), (unsigned char)(bgColor & 0xFF), 255 };
-						Color groundColor = { (unsigned char)((grColor >> 16) & 0xFF), (unsigned char)((grColor >> 8) & 0xFF), (unsigned char)(grColor & 0xFF), 255 };
+						Color backgroundColor = ColorFromInt(bgColor);
+						Color groundColor = ColorFromInt(grColor);
 
 						world = std::make_unique<World>(
 							createMenuUIElements[0]->getContent(), // worldName
@@ -261,6 +257,24 @@ int main() {
 						currentState = STATE_MENU_INIT;
 						break;
 					}
+					case 102: 
+					{
+						// Input field for background color
+						std::string content = createMenuUIElements[i]->getContent();
+						if (content.length() == 6 && std::all_of(content.begin(), content.end(), ::isxdigit)) {
+							previewWorld->backgroundColor = ColorFromInt(std::stoi(createMenuUIElements[2]->getContent(), nullptr, 16));
+						}
+						break;
+					}
+					case 103:
+					{
+						// Input field for ground color
+						std::string content = createMenuUIElements[i]->getContent();
+						if (content.length() == 6 && std::all_of(content.begin(), content.end(), ::isxdigit)) {
+							previewWorld->groundColor = ColorFromInt(std::stoi(createMenuUIElements[3]->getContent(), nullptr, 16));
+						}
+						break;
+					}
 					default:
 					{
 						break;
@@ -277,13 +291,13 @@ int main() {
 			break;
 		case STATE_GAME:
 
-			
 			ClearBackground(BeigeWORLD);
 			DrawTextB("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 24, 24, 1, BLACK);
+			
 			DrawTextB("Generation: " + std::to_string(world->generation), 24, 48, 2, BLACK);
-			DrawTextB(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->generation].fitness / 100), 24, 96, 1, BLACK);
-			DrawTextB(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->generation].fitness / 100), 24, 120, 1, BLACK);
-			DrawTextB(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->generation].fitness / 100), 24, 144, 1, BLACK);
+			DrawTextB(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->viewGeneration].fitness / 100), 24, 96, 1, BLACK);
+			DrawTextB(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->viewGeneration].fitness / 100), 24, 120, 1, BLACK);
+			DrawTextB(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->viewGeneration].fitness / 100), 24, 144, 1, BLACK);
 			
 			for (int i = 0; i < ingameUIElements.size(); i++) {
 				ingameUIElements[i]->tick();
@@ -298,7 +312,12 @@ int main() {
 						notices.push_back({ "Save functionality not implemented yet.", 3.0f });
 						break;
 					case 2: // Next Generation
+						timeForOneGen = GetTime();
 						world->DoGeneration();
+						timeForOneGen = GetTime() - timeForOneGen;
+						std::cout << "Generation " << world->generation << " took " << timeForOneGen << " seconds." << std::endl;
+						dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
+						dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
 						break;
 					case 3: // Do Generations Nonstop
 						SetTargetFPS(0);
@@ -318,7 +337,7 @@ int main() {
 						currentState = STATE_DRAW_CREATURE;
 						break;
 					case 200: // View Generation Slider
-						// Handle slider value change if needed
+						world->viewGeneration = std::stoi(ingameUIElements[i]->getContent());
 						break;
 					}
 				}
@@ -326,6 +345,8 @@ int main() {
 			
 			if (doGenerationsNonstop) {
 				world->DoGeneration();
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
 			}
 
 			if (IsKeyDown(KEY_L) && doGenerationsNonstop) {
@@ -337,7 +358,7 @@ int main() {
 			break;
 		case STATE_DRAW_CREATURE:
 			ClearBackground(world->backgroundColor);
-			auto creature = world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->generation);
+			auto creature = world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration);
 
 			DrawTextB(std::format("Watching creature #{:}",creature->id), 24, 24, 1, BLACK);
 			DrawTextB(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), 24, 48, 1, BLACK);
@@ -356,13 +377,10 @@ int main() {
 				currentState = STATE_GAME;
 			}
 			
-
 			DrawTextB("Press B to go back!", 20, absoluteHeight - 32, 1, WHITE);
 
 			break;
 		}
-
-		
 
 		// Draw notices
 		for (auto it = notices.begin(); it != notices.end();) {

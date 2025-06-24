@@ -31,7 +31,7 @@ Creature* World::DrawWithCreatureCentered(int index, int generation) {
         break;
     }
     DrawRectangleB(0, (4 * screenHeight / 5 / screenHeightRatio), screenWidth, screenHeight / 5, groundColor);
-    // camera.target = { creature->getCenterX() - screenWidth / 2, (float)-4 * screenHeight / 5 + Creature::FLOOR_HEIGHT + (guiScale-1) * 5};
+
     camera.target = { (creature->getCenterX() - (screenWidth / 2) * 2.0f / guiScale) , ((float)-4 * screenHeight / 5) * 2.0f / guiScale + Creature::FLOOR_HEIGHT };
     camera.zoom = 0.5f * guiScale;
     BeginMode2D(camera);
@@ -92,7 +92,6 @@ void World::DoGeneration()
         return a.getCenterX() < b.getCenterX();
         });
 
-    // std::cout << "Generation " << generation << " best creature : " << creatures[numOfCreatures - 1].id << " with center X : " << creatures[numOfCreatures - 1].getCenterX() << "\n";
 
 	creatures[0].fitness = creatures[0].getCenterX();
 	creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
@@ -111,17 +110,6 @@ void World::DoGeneration()
     for (int i = 0; i < numOfCreatures / 2; ++i) {
         creatures[i] = creatures[numOfCreatures - 1 - i].reproduce();
     }
-}
 
-void World::DrawCreature() {
-	if (IsKeyPressed(KEY_L)) {
-		creatures[numOfCreatures - 1].reset();
-	}
-	accumulatedTime += drawSpeedMult;
-	while (accumulatedTime > 1) {
-		creatures[numOfCreatures - 1].tick();
-		accumulatedTime -= 1;
-	}
-
-	creatures[numOfCreatures - 1].draw();
+    viewGeneration = generation;
 }

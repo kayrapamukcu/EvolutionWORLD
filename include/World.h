@@ -37,8 +37,8 @@ public:
 		numOfCreatures(1000),
 		ticksToSwitchMuscleStage(100),
 		gravity(98),
-		backgroundColor({ 255, 196, 240, 255 }),
-		groundColor({ 1, 26, 20, 255 })
+		backgroundColor({ 169, 169, 169, 255 }),
+		groundColor({ 17, 17, 17, 255 })
 		, drawSpeedMult(1.66f) // Default draw speed multiplier
 	{
 		rng.setSeed(worldSeed);
@@ -103,6 +103,5 @@ public:
 	void DrawCentered(int x, int y, int width, int height);
 	void DoGeneration();
 	void InitializeWorld();
-	void DrawCreature();
 	Creature* DrawWithCreatureCentered(int index, int generation);
 };

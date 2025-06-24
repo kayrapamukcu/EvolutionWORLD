@@ -48,3 +48,8 @@ Rectangle DrawRectangleCenteredLines(int xCenter, int yCenter, int w, int h, int
 	DrawRectangleLinesEx({ xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) }, thickness * guiScale, color);
 	return { xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) };
 }
+
+Color ColorFromInt(int color)
+{
+	return { (unsigned char)((color >> 16) & 0xFF), (unsigned char)((color >> 8) & 0xFF), (unsigned char)(color & 0xFF), 255 };
+}

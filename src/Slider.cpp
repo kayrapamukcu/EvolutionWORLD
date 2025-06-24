@@ -24,6 +24,7 @@ void Slider::tick()
 			active = true;
 		}
 		else if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
+			active = true;
 			precise = true;
 		}
 	}
@@ -34,15 +35,14 @@ void Slider::tick()
 		active = false;
 	}
 	if (IsMouseButtonReleased(MOUSE_RIGHT_BUTTON)) {
+		active = false;
 		precise = false;
 	}
 	float mouseX = GetMousePosition().x;
 	float sliderStart = x * screenWidthRatio - width * guiScale / 2 + (NUB_WIDTH * guiScale) / 2;
 	float sliderEnd = x * screenWidthRatio + width * guiScale / 2 - (NUB_WIDTH * guiScale) / 2;
 	float xClicked = std::clamp(mouseX, sliderStart, sliderEnd);
-	if (active) {
-		curVal = minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * (maxVal - minVal));
-	}
+	
 	if (precise) {
 		if (GetTime() - lastAdjustmentTime < 0.1) {
 			return;
@@ -55,6 +55,9 @@ void Slider::tick()
 			curVal = std::min(maxVal, curVal + 1);
 		}
 		lastAdjustmentTime = GetTime();
+	}
+	else if (active) {
+		curVal = minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * (maxVal - minVal));
 	}
 }
 

@@ -12,27 +12,46 @@ int Creature::idCounter = 0;
 World* Creature::world = nullptr;
 int Creature::FLOOR_HEIGHT = 100; 
 float Creature::minNodeFriction = 1.0f;
-float Creature::maxNodeFriction = 10.0f;
+float Creature::maxNodeFriction = 4.0f;
+
+void Creature::initializeChild(Creature* parent) {
+	id = idCounter++;
+	for (int i = 0; i < nodeCount; i++) {
+		muscles[i].node1 = i;
+		muscles[i].node2 = (i + 1) % nodeCount;
+	}
+	for (int i = 0; i < nodeCount; ++i) {
+		nodes[i].initialX = std::clamp(parent->nodes[i].initialX + world->rng.randomFloat(-1.0f, 1.0f), -50.0f, 50.0f);
+		nodes[i].initialY = std::clamp(parent->nodes[i].initialY + world->rng.randomFloat(-1.0f, 1.0f), -30.0f, 30.0f);
+		nodes[i].x = nodes[i].initialX;
+		nodes[i].y = nodes[i].initialY;
+		nodes[i].xSpeed = 0.0f;
+		nodes[i].ySpeed = 0.0f;
+		nodes[i].mass = std::clamp(parent->nodes[i].mass + world->rng.randomFloat(-0.01f, 0.01f), 0.3f, 2.0f);
+		nodes[i].friction = std::clamp(parent->nodes[i].friction + world->rng.randomFloat(-0.01f, 0.01f), minNodeFriction, maxNodeFriction);
+	}
+	for (int i = 0; i < muscleCount; ++i) {
+		muscles[i].length1 = std::clamp(parent->muscles[i].length1 + world->rng.randomFloat(-10.0f, 10.0f), 0.0f, 500.0f);
+		muscles[i].length2 = std::clamp(parent->muscles[i].length2 + world->rng.randomFloat(-10.0f, 10.0f), 0.0f, 500.0f);
+		muscles[i].strength = std::clamp(parent->muscles[i].strength + world->rng.randomFloat(-0.01f, 0.01f), 0.4f, 2.0f);
+	}
+	tickCounter = world->ticksToSwitchMuscleStage;
+}
 
 void Creature::initialize()
 {
 	id = idCounter++;
-
-	nodes[0].x = -60;
-	nodes[0].y = 0;
-	nodes[1].x = 0;
-	nodes[1].y = 80;
-	nodes[2].x = 60;
-	nodes[2].y = 0;
-
-	muscles[0].node1 = 0;
-	muscles[0].node2 = 1;
-	muscles[1].node1 = 1;
-	muscles[1].node2 = 2;
-	muscles[2].node1 = 2;
-	muscles[2].node2 = 0;
+	
+	for (int i = 0; i < nodeCount; i++) {
+		muscles[i].node1 = i;
+		muscles[i].node2 = (i + 1) % nodeCount;
+	}
 
 	for (int i = 0; i < nodeCount; ++i) {
+		nodes[i].initialX = world->rng.randomFloat(-50.0f, 50.0f);
+		nodes[i].initialY = world->rng.randomFloat(-25.0f, 25.0f);
+		nodes[i].x = nodes[i].initialX;
+		nodes[i].y = nodes[i].initialY;
 		nodes[i].mass = world->rng.randomFloat(0.5f, 0.5f);
 		nodes[i].xSpeed = 0.0f;
 		nodes[i].ySpeed = 0.0f;
@@ -41,12 +60,10 @@ void Creature::initialize()
 	for (int i = 0; i < muscleCount; ++i) {
 		muscles[i].length1 = world->rng.randomFloat(80.0f, 160.0f);
 		muscles[i].length2 = world->rng.randomFloat(80.0f, 160.0f);
-		muscles[i].strength = world->rng.randomFloat(0.2f, 1.0f);
+		muscles[i].strength = world->rng.randomFloat(0.5f, 1.2f);
 	}
 	tickCounter = world->ticksToSwitchMuscleStage;
 }
-
-
 
 void Creature::tick()
 {
@@ -58,6 +75,7 @@ void Creature::tick()
 
     constexpr float damping = 0.985f;
 	constexpr float timestepScale = 1.0f / 250.f;
+	constexpr float gravityMult = 1.0f / 3266.0f;
 
     for (int i = 0; i < muscleCount; ++i)
     {
@@ -69,13 +87,13 @@ void Creature::tick()
         float dx = n2.x - n1.x;
         float dy = n2.y - n1.y;
         float dist = std::sqrt(dx * dx + dy * dy);
-        if (dist < 1e-5f) continue;     // avoid divide-by-zero
+        if (dist < 1e-5f) continue;
 
         // which rest length are we aiming for this tick?
         float rest = muscleStage ? m.length1 : m.length2;
 
-        float stretch = dist - rest;              // signed difference
-        float forceMag = m.strength * stretch;    // Hooke’s law (k = strength)
+        float stretch = dist - rest;
+        float forceMag = m.strength * stretch;
 
         // unit vector along the muscle
         float ux = dx / dist;
@@ -96,12 +114,11 @@ void Creature::tick()
     for (int i = 0; i < nodeCount; ++i) {
         Node& n = nodes[i];
 
-		n.ySpeed += world->gravity / 3266.0f;
+		n.ySpeed += world->gravity * gravityMult;
 
         n.xSpeed *= damping;
         n.ySpeed *= damping;
 
-        
         n.y += n.ySpeed;
 
         if (n.y > FLOOR_HEIGHT - n.mass * 10) {
@@ -128,14 +145,9 @@ const float Creature::getCenterX() const
 
 void Creature::reset()
 {
-	nodes[0].x = -60;
-	nodes[0].y = 0;
-	nodes[1].x = 0;
-	nodes[1].y = 80;
-	nodes[2].x = 60;
-	nodes[2].y = 0;
 	for (int i = 0; i < nodeCount; ++i) {
-		
+		nodes[i].x = nodes[i].initialX;
+		nodes[i].y = nodes[i].initialY;
 		nodes[i].xSpeed = 0;
 		nodes[i].ySpeed = 0;
 	}
@@ -163,15 +175,11 @@ void Creature::draw() {
 
 Creature Creature::reproduce() {
 	Creature child;
-	child.initialize();
-	for (int i = 0; i < nodeCount; ++i) {
-		child.nodes[i].mass = std::clamp(nodes[i].mass + world->rng.randomFloat(-0.01f, 0.01f), 0.3f, 2.0f);
-		child.nodes[i].friction = std::clamp(nodes[i].friction + world->rng.randomFloat(-0.01f, 0.01f), minNodeFriction, maxNodeFriction);
-	}
-	for (int i = 0; i < muscleCount; ++i) {
-		child.muscles[i].length1 = std::clamp(muscles[i].length1 + world->rng.randomFloat(-10.0f, 10.0f), 0.0f, 500.0f);
-		child.muscles[i].length2 = std::clamp(muscles[i].length2 + world->rng.randomFloat(-10.0f, 10.0f), 0.0f, 500.0f);
-		child.muscles[i].strength = std::clamp(muscles[i].strength + world->rng.randomFloat(-0.01f, 0.01f), 0.01f, 2.0f);
-	}
+	child.initializeChild(this);
 	return child;
+}
+
+int Creature::getMaxMuscleCountForNodeCount(int nodeCount)
+{
+	return (nodeCount * (nodeCount - 1)) / 2;
 }
