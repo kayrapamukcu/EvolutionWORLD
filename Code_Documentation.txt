@@ -1,0 +1,14 @@
+This project was made using C++20 and a preview version of RayLib 5.6
+
+The UI was designed to be fully resolution-scalable; elements get repositioned and scaled based on a dynamic guiScale factor.
+The simulation is multithreaded (as creating & testing hundreds of creatures is a very parallelizable problem, so it was done without much difficulty).
+
+main.cpp: Houses the main game loop, including all the menus, create world screen, in-game view and creature view. There are a few global game states (like STATE_MENU or STATE_GAME). UI elements are added to vectors and displayed & ticked every frame. There's a very basic "notice" system. Most of the games' draw calls are in here as well.
+
+UI elements (Slider.cpp, Button.cpp and InputField.cpp): All UI components inherit from UIElement, which provides shared functionality such as positioning, sizing, and activation state. Each UI element implements their own draw and tick functions. The getContent function is used to get their data as a string.
+
+World: This houses the worlds' variables, like the amount of creatures. An array holds the entire creature list; each generation, the worst performing half are removed and the best performing half gets to reproduce. Three more vectors hold the worst, average and best creatures of each generation - these can always be accessed, no matter which generation you're in. Finally, there are a few draw functions to draw the world when needed.
+
+Creature: The creature class. Each creature holds two arrays of structs of type Node and Muscle - these are used to define the creature; which node has how much mass, how much strength a muscle should have, etc. There's a reference to the world, needed to access its RNG helper class and other variables. Each nodes' darkness shows how "friction-y" it is. Each creature will extend and contract their muscles based on a clock.
+
+Helper: This isn't even a class, but it holds some global variables and some helper Draw functions.
