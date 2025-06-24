@@ -13,7 +13,7 @@ Only Windows executables are provided, but it should be possible to compile for 
 Minimum reqs:
 Windows 7
 Graphics card with OpenGL 2.1 support
----
+
 
 ## Features
 
@@ -32,7 +32,6 @@ Graphics card with OpenGL 2.1 support
 - **History Tracking**  
   Best, average, and worst creatures from each generation are stored for later comparison and visualization.
 
----
 
 ## Things to add
 
@@ -42,7 +41,6 @@ Graphics card with OpenGL 2.1 support
 - Better / more music & sfx  
 - Percentile view graph & species graph
 
----
 
 ## License
 
