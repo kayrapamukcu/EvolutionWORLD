@@ -13,6 +13,9 @@ struct Node {
 };
 struct Muscle {
 	uint8_t node1, node2;
+	uint16_t state1Ticks, state2Ticks;
+	bool currentMuscleStage;
+	uint8_t muscleTickCounter;
 	float length1, length2;
 	float strength;
 };
@@ -24,9 +27,9 @@ public:
 	static int FLOOR_HEIGHT;
 	int id;
 	float fitness = 0.0f;
-	bool muscleStage = false;
 	int muscleCount = 3;
 	int nodeCount = 3;
+	int tickCounter = 0;
 	Node nodes[3];
 	Muscle muscles[3];
 
@@ -38,9 +41,31 @@ public:
 	const float getCenterX() const;
 	Creature reproduce();
 
+	static void stretchRange(float baseMin, float baseMax, float r, float& outMin, float& outMax);
+	static void updateNodeAndMuscleRangesAndVariations();
+private:
 	static float minNodeFriction;
 	static float maxNodeFriction;
-	static int getMaxMuscleCountForNodeCount(int nodeCount);
-private:
-	int tickCounter = ticksToSwitchMuscleStage;
+	static float minNodeMass;
+	static float maxNodeMass;
+	static float minNodeInitialX;
+	static float maxNodeInitialX;
+	static float minNodeInitialY;
+	static float maxNodeInitialY;
+	static float minMuscleStrength;
+	static float maxMuscleStrength;
+	static float minMuscleLength;
+	static float maxMuscleLength;
+	static float minMuscleStateTicks;
+	static float maxMuscleStateTicks;
+
+	static float nodeFrictionVariation;
+	static float nodeMassVariation;
+	static float nodeInitialXVariation;
+	static float nodeInitialYVariation;
+	static float muscleStrengthVariation;
+	static float muscleLengthVariation;
+	static int muscleStateTicksVariation;
+
+	static int drawRadius;
 };

@@ -16,10 +16,11 @@ public:
 	int ticksPerSecond;
 	int secondsPerSimulation;
 	int numOfCreatures;
-	int ticksToSwitchMuscleStage;
 	int gravity;
 	int generation = -1; // Current generation of the world
 	int viewGeneration = 0;
+	float mutabilityRange = 1.0f;
+	float mutabilityFactor = 1.0f;
 	float drawSpeedMult = 1.66f;
 	float accumulatedTime = 0.0f;
 	std::unique_ptr<Creature[]> creatures;
@@ -37,10 +38,11 @@ public:
 		ticksPerSecond(100),
 		secondsPerSimulation(15),
 		numOfCreatures(1000),
-		ticksToSwitchMuscleStage(100),
+		mutabilityRange(1.0f),
+		mutabilityFactor(1.0f),
 		gravity(98),
-		backgroundColor({ 169, 169, 169, 255 }),
-		groundColor({ 17, 17, 17, 255 })
+		backgroundColor({ 106, 183, 242, 255 }),
+		groundColor({ 0, 94, 0, 255 })
 		, drawSpeedMult(1.66f) // Default draw speed multiplier
 	{
 		rng.setSeed(worldSeed);
@@ -48,15 +50,14 @@ public:
 		Creature::world = this;
 		percentileGraph.world = this;
 		Creature::idCounter = 0;
+		Creature::updateNodeAndMuscleRangesAndVariations();
 		InitializeWorld();
 		camera.offset = { 0, 0 };
 		camera.target = { 0, 0 };
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;
-		
-
 	}
-	World(const std::string& n, const std::string& s, int grav, int nc, int tps, int sps, int ttsms, Color bc, Color gc) :
+	World(const std::string& n, const std::string& s, int grav, int nc, int tps, int sps, int mr, int mf, Color bc, Color gc) :
 
 		worldName(n),
 		worldSeed(returnRandomWorldSeed(s)), // Convert hex string to unsigned long long
@@ -64,7 +65,8 @@ public:
 		ticksPerSecond(tps),
 		secondsPerSimulation(sps),
 		numOfCreatures(nc),
-		ticksToSwitchMuscleStage(ttsms),
+		mutabilityRange((float)mr/100),
+		mutabilityFactor((float)mf/100),
 		backgroundColor(bc),
 		groundColor(gc),
 		drawSpeedMult((float)tps/(float)FRAMES_PER_SECOND)
@@ -74,12 +76,12 @@ public:
 		Creature::world = this;
 		percentileGraph.world = this;
 		Creature::idCounter = 0;
+		Creature::updateNodeAndMuscleRangesAndVariations();
 		InitializeWorld();
 		camera.offset = { 0, 0 };
 		camera.target = { 0, 0 };
 		camera.rotation = 0.0f;
-		camera.zoom = 1.0f;
-		
+		camera.zoom = 1.0f;	
 	}
 	static unsigned int const returnRandomWorldSeed(const std::string& entered) {
 		// if the entire string is a number, return it as a seed

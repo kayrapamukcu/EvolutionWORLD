@@ -5,6 +5,7 @@
 #include <iostream>
 #include <thread>
 #include <execution>
+#include <unordered_set>
 
 void World::Draw(int x, int y, int width, int height) {
 	DrawRectangleB(x, y, width, height, backgroundColor);
@@ -121,24 +122,35 @@ void World::DoGeneration()
 
 	SendGenerationalDataToPercentileGraph();
 
+    /*for (int i = 0; i < numOfCreatures; ++i) {
+		creatures[i].fitness = creatures[i].getCenterX();
+    }*/
+
 	creatures[0].fitness = creatures[0].getCenterX();
 	creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
 	creatures[numOfCreatures - 1].fitness = creatures[numOfCreatures - 1].getCenterX();
 
     // now fill up 
 
-    for (int i = 0; i < numOfCreatures / 2; ++i) {
+    for (int i = 0; i < numOfCreatures; ++i) {
         creatures[numOfCreatures - 1 - i].reset();
     }
-
-    creatures[0].reset();
 
 	worstGenerationalCreatures.push_back(creatures[0]);
 	averageGenerationalCreatures.push_back(creatures[numOfCreatures / 2]);
 	bestGenerationalCreatures.push_back(creatures[numOfCreatures - 1]);
 
-    for (int i = 0; i < numOfCreatures / 2; ++i) {
-        creatures[i] = creatures[numOfCreatures - 1 - i].reproduce();
+    //for (int i = 0; i < numOfCreatures / 2; ++i) {
+    //    creatures[i] = creatures[numOfCreatures - 1 - i].reproduce();
+    // }
+    
+    for (int j = 0; j < numOfCreatures / 2; j++) {
+        float f = static_cast<float>(j) / numOfCreatures;
+        float rand = (std::pow(rng.randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
+
+        int j2 = (f <= rand) ? j : numOfCreatures - 1 - j;
+
+        creatures[j2] = creatures[numOfCreatures-j2-1].reproduce();
     }
 
     viewGeneration = generation;

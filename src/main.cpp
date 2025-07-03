@@ -140,17 +140,18 @@ int main() {
 			
 			createMenuUIElements.push_back(std::make_unique<InputField>(100, 160, 112, 130, 20, "World Name"));
 			createMenuUIElements.push_back(std::make_unique<InputField>(101, 160, 192, 130, 20, "World Seed"));
-			createMenuUIElements.push_back(std::make_unique<InputField>(102, 90, 272, 60, 20, "BG Color", "A9A9A9", 6));
-			createMenuUIElements.push_back(std::make_unique<InputField>(103, 230, 272, 60, 20, "Grnd Color", "111111", 6));
+			createMenuUIElements.push_back(std::make_unique<InputField>(102, 90, 272, 60, 20, "BG Color", "6AB7F2", 6));
+			createMenuUIElements.push_back(std::make_unique<InputField>(103, 230, 272, 60, 20, "Grnd Color", "005E00", 6));
 			
 			createMenuUIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 450, 100, 25, "Create WORLD"));
 			createMenuUIElements.push_back(std::make_unique<Button>(1, 60, 450, 50, 25, "Back"));
 			
 			createMenuUIElements.push_back(std::make_unique<Slider>(200, absoluteWidth - 160, 112, 130, 20, "Creature Count", 100, 2500, numOfCreatures));
-			createMenuUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth - 160, 192, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
-			createMenuUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 272, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
-			createMenuUIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 352, 130, 20, "Muscle Speed", 20, 200, ticksToSwitchMuscleStage));
-			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 432, 130, 20, "Gravity", 20, 1000, gravityConst));
+			createMenuUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth - 160, 172, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
+			createMenuUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 232, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
+			createMenuUIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 292, 130, 20, "Mutability Range", 1, 200, 100));
+			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 352, 130, 20, "Mutability Factor", 1, 500, 100));
+			createMenuUIElements.push_back(std::make_unique<Slider>(205, absoluteWidth - 160, 412, 130, 20, "Gravity", 20, 1000, gravityConst));
 
 			// ingame UI elements setup
 
@@ -169,6 +170,7 @@ int main() {
 
 
 			currentState = STATE_MENU;
+			world = std::make_unique<World>();
 			break;
 		case STATE_MENU:
 			
@@ -249,11 +251,12 @@ int main() {
 						world = std::make_unique<World>(
 							createMenuUIElements[0]->getContent(), // worldName
 							createMenuUIElements[1]->getContent(), // worldSeed
-							std::stoi(createMenuUIElements[10]->getContent()), // gravity
+							std::stoi(createMenuUIElements[11]->getContent()), // gravity
 							std::stoi(createMenuUIElements[6]->getContent()), // numOfCreatures
 							std::stoi(createMenuUIElements[7]->getContent()), // ticksPerSecond
 							std::stoi(createMenuUIElements[8]->getContent()), // secondsPerSimulation
-							std::stoi(createMenuUIElements[9]->getContent()), // ticksToSwitchMuscleStage
+							std::stoi(createMenuUIElements[9]->getContent()), // mutabilityRange
+							std::stoi(createMenuUIElements[10]->getContent()), // mutabilityFactor
 							backgroundColor,
 							groundColor
 						);

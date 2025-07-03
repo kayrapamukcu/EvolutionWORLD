@@ -19,7 +19,7 @@ void PercentileGraph::draw()
 	float yScale = height / (maxValue - minValue);
 
 	int startGen = std::max(0, world->viewGeneration - dataPoints);
-	int endGen = world->viewGeneration;
+	int endGen = std::max(world->viewGeneration, dataPoints);
 	
 	std::string startLabel = std::format("{}", startGen);
 	std::string endLabel = std::format("{}", endGen);
@@ -94,9 +94,9 @@ void PercentileGraph::draw()
 void PercentileGraph::updateExtremeValues() // Only called when new data is added, so only the last point of the first and last vector is checked.
 {
 	if (data[0].empty()) return;
-	minValue = -1.0f;
+	/*iminValue = -1.0f;
 	maxValue = 1.0f;
-	int start = std::max(0, world->viewGeneration - maxDataPoints);
+	nt start = std::max(0, world->viewGeneration - maxDataPoints);
 	int dataPoints = std::min((int)data[0].size(), maxDataPoints);
 
 	for (int j = 0; j < dataPoints; j++) {
@@ -110,13 +110,16 @@ void PercentileGraph::updateExtremeValues() // Only called when new data is adde
 		
 	} 
 	minValue *= 1.05f;
-	maxValue *= 1.05f;
-	/*if (data[14][data[14].size() - 1] > maxValue) {
+	maxValue *= 1.05f;*/
+
+	if (data[14][data[14].size() - 1] > maxValue) {
 		maxValue = data[14][data[14].size() - 1];
-		minValue = -0.3 * maxValue;
-		minValue *= 1.05f;
 		maxValue *= 1.05f;
-	}*/
+	}
+	if (data[0][data[0].size() - 1] < minValue) {
+		minValue = data[0][data[0].size() - 1];
+		minValue *= 1.05f;
+	}
 }
 
 void PercentileGraph::compressGraph()

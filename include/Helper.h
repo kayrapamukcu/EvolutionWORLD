@@ -25,11 +25,10 @@ inline constexpr int secondsPerSimulation = 15;
 
 inline constexpr int nodeCount = 3;
 inline constexpr int muscleCount = 3;
-inline constexpr int ticksToSwitchMuscleStage = 50;
 inline constexpr int gravityConst = 98;
 inline constexpr int numOfCreatures = 1000;
 
-inline constexpr auto versionString = "v1.1.0";
+inline constexpr auto versionString = "v1.2.0";
 
 extern Font defaultFont;
 
