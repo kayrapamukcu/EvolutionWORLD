@@ -33,6 +33,14 @@ Rectangle DrawRectangleB(int x, int y, int w, int h, Color color)
 	return { x * screenWidthRatio, y * screenHeightRatio, float(width), float(height) };
 }
 
+Rectangle DrawRectangleLinesB(int x, int y, int width, int height, int thickness, Color color)
+{
+	auto w = width * guiScale;
+	auto h = height * guiScale;
+	DrawRectangleLinesEx({ x * screenWidthRatio, y * screenHeightRatio, float(w), float(h) }, thickness * guiScale, color);
+	return { x * screenWidthRatio, y * screenHeightRatio, float(w), float(h) };
+}
+
 Rectangle DrawRectangleCentered(int xCenter, int yCenter, int w, int h, Color color)
 {
 	auto width = w * guiScale;
@@ -47,6 +55,11 @@ Rectangle DrawRectangleCenteredLines(int xCenter, int yCenter, int w, int h, int
 	auto height = h * guiScale;
 	DrawRectangleLinesEx({ xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) }, thickness * guiScale, color);
 	return { xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) };
+}
+
+void DrawLineB(int x1, int y1, int x2, int y2, Color color)
+{
+	DrawLineEx({ x1 * screenWidthRatio, y1 * screenHeightRatio }, { x1 * screenWidthRatio + (x2 - x1) , y1 * screenHeightRatio + (y2 - y1) }, 1.0f * guiScale, color);
 }
 
 Color ColorFromInt(int color)

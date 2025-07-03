@@ -14,6 +14,8 @@
 #include <string>
 #include <format>
 
+int guiScalePrev = 2;
+
 void ClampWindowSize() {
 	screenWidth = GetScreenWidth();
 	screenHeight = GetScreenHeight();
@@ -43,6 +45,12 @@ void ClampWindowSize() {
 
 	guiScale = std::min(guiScaleWidth, guiScaleHeight);
 
+	if (guiScalePrev != guiScale) {
+		justResized = true;
+		std::cout << " New GUI scale!!!!!!!!!!!!!!!!\n";}
+	else justResized = false;
+
+	guiScalePrev = guiScale;
 	if (needsResize) {
 		SetWindowSize(screenWidth, screenHeight);
 	}
@@ -77,6 +85,7 @@ int main() {
 
 	std::vector<Notice> notices;
 	
+	SetConfigFlags(FLAG_MSAA_4X_HINT);
 	InitWindow(screenWidth, screenHeight, "EvolutionWORLD");
 
 	SetTargetFPS(FRAMES_PER_SECOND);
@@ -338,6 +347,7 @@ int main() {
 						break;
 					case 200: // View Generation Slider
 						world->viewGeneration = std::stoi(ingameUIElements[i]->getContent());
+						world->percentileGraph.updateExtremeValues();
 						break;
 					}
 				}
@@ -354,6 +364,8 @@ int main() {
 				doGenerationsNonstop = false;
 				notices.clear();
 			}
+
+			world->percentileGraph.draw();
 			
 			break;
 		case STATE_DRAW_CREATURE:

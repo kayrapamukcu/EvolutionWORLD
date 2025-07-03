@@ -58,6 +58,33 @@ void World::InitializeWorld() {
     DoGeneration();
 }
 
+void World::SendGenerationalDataToPercentileGraph()
+{
+	percentileGraph.data[0].push_back(creatures[0].getCenterX() / 100.0f); // worst creature
+	percentileGraph.data[1].push_back(creatures[(int)(0.01f * (numOfCreatures - 1))].getCenterX() / 100.0f);
+	percentileGraph.data[2].push_back(creatures[(int)(0.02f * (numOfCreatures - 1))].getCenterX() / 100.0f);
+
+
+	percentileGraph.data[3].push_back(creatures[(int)(0.05f * (numOfCreatures - 1))].getCenterX() / 100.0f);
+
+	percentileGraph.data[4].push_back(creatures[(int)(0.10f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 10th percentile
+
+	percentileGraph.data[5].push_back(creatures[(int)(0.20f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 20th percentile
+	percentileGraph.data[6].push_back(creatures[(int)(0.35f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 35th percentile
+	percentileGraph.data[7].push_back(creatures[(int)(0.50f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 50th percentile (median)
+	percentileGraph.data[8].push_back(creatures[(int)(0.65f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 65th percentile
+	percentileGraph.data[9].push_back(creatures[(int)(0.80f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 80th percentile
+	percentileGraph.data[10].push_back(creatures[(int)(0.90f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 90th percentile
+
+	percentileGraph.data[11].push_back(creatures[(int)(0.95f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 95th percentile
+
+	percentileGraph.data[12].push_back(creatures[(int)(0.98f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 98th percentile
+	percentileGraph.data[13].push_back(creatures[(int)(0.99f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 99th percentile
+	percentileGraph.data[14].push_back(creatures[numOfCreatures - 1].getCenterX() / 100.0f); // best creature
+
+    percentileGraph.updateExtremeValues();
+}
+
 void World::DoGeneration()
 {
     generation++;
@@ -92,10 +119,13 @@ void World::DoGeneration()
         return a.getCenterX() < b.getCenterX();
         });
 
+	SendGenerationalDataToPercentileGraph();
 
 	creatures[0].fitness = creatures[0].getCenterX();
 	creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
 	creatures[numOfCreatures - 1].fitness = creatures[numOfCreatures - 1].getCenterX();
+
+    // now fill up 
 
     for (int i = 0; i < numOfCreatures / 2; ++i) {
         creatures[numOfCreatures - 1 - i].reset();

@@ -5,9 +5,11 @@
 #include <array>
 #include <vector>
 #include "Creature.h"
+#include "PercentileGraph.h"
 
 class World {
 public:
+	PercentileGraph percentileGraph = PercentileGraph(460, 20, 300, 240);
 	RNG rng;
 	std::string worldName;
 	uint32_t worldSeed;
@@ -44,12 +46,14 @@ public:
 		rng.setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
 		Creature::world = this;
+		percentileGraph.world = this;
 		Creature::idCounter = 0;
 		InitializeWorld();
 		camera.offset = { 0, 0 };
 		camera.target = { 0, 0 };
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;
+		
 
 	}
 	World(const std::string& n, const std::string& s, int grav, int nc, int tps, int sps, int ttsms, Color bc, Color gc) :
@@ -68,12 +72,14 @@ public:
 		rng.setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
 		Creature::world = this;
+		percentileGraph.world = this;
 		Creature::idCounter = 0;
 		InitializeWorld();
 		camera.offset = { 0, 0 };
 		camera.target = { 0, 0 };
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;
+		
 	}
 	static unsigned int const returnRandomWorldSeed(const std::string& entered) {
 		// if the entire string is a number, return it as a seed
@@ -103,5 +109,6 @@ public:
 	void DrawCentered(int x, int y, int width, int height);
 	void DoGeneration();
 	void InitializeWorld();
+	void SendGenerationalDataToPercentileGraph();
 	Creature* DrawWithCreatureCentered(int index, int generation);
 };

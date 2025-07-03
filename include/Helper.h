@@ -29,13 +29,14 @@ inline constexpr int ticksToSwitchMuscleStage = 50;
 inline constexpr int gravityConst = 98;
 inline constexpr int numOfCreatures = 1000;
 
-inline constexpr auto versionString = "v1.0.0";
+inline constexpr auto versionString = "v1.1.0";
 
 extern Font defaultFont;
 
 inline bool inputActive = true;
 
 inline int guiScale = 2;
+inline bool justResized = false;
 
 inline constexpr Color PinkWORLD = { 255 , 196 , 240 , 255 };
 inline constexpr Color LightBlueWORLD = { 173 , 216 , 230 , 255 };
@@ -48,7 +49,10 @@ void DrawTextCenteredHorizontal(const std::string& text, int x, int y, int fontS
 void DrawTextB(const std::string& text, int x, int y, int fontSize, Color color);
 void DrawTextCenteredNoScale(const std::string& text, int x, int y, int fontSize, Color color);
 Rectangle DrawRectangleB(int x, int y, int width, int height, Color color);
+Rectangle DrawRectangleLinesB(int x, int y, int width, int height, int thickness, Color color);
 Rectangle DrawRectangleCentered(int x, int y, int width, int height, Color color);
 Rectangle DrawRectangleCenteredLines(int x, int y, int width, int height, int thickness, Color color);
+
+void DrawLineB(int x1, int y1, int x2, int y2, Color color);
 
 Color ColorFromInt(int hexColor);
