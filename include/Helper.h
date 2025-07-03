@@ -47,6 +47,7 @@ inline constexpr Color BeigeWORLD = { 240 , 188 , 120 , 255 };
 void DrawTextCentered(const std::string& text, int x, int y, int fontSize, Color color);
 void DrawTextCenteredHorizontal(const std::string& text, int x, int y, int fontSize, Color color);
 void DrawTextB(const std::string& text, int x, int y, int fontSize, Color color);
+void DrawTextC(const std::string& text, int x, int y, int fontSize, Color color);
 void DrawTextCenteredNoScale(const std::string& text, int x, int y, int fontSize, Color color);
 Rectangle DrawRectangleB(int x, int y, int width, int height, Color color);
 Rectangle DrawRectangleLinesB(int x, int y, int width, int height, int thickness, Color color);

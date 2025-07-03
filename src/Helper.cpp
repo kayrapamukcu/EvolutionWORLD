@@ -19,6 +19,11 @@ void DrawTextB(const std::string& text, int x, int y, int fontScale, Color color
 	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale, color);
 }
 
+void DrawTextC(const std::string& text, int x, int y, int fontScale, Color color)
+{
+	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale, color);
+}
+
 void DrawTextCenteredNoScale(const std::string& text, int x, int y, int fontSize, Color color)
 {
 	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), defaultFont.baseSize * fontSize, fontSize);

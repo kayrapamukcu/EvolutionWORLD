@@ -9,7 +9,7 @@
 
 class World {
 public:
-	PercentileGraph percentileGraph = PercentileGraph(460, 20, 300, 240);
+	PercentileGraph percentileGraph = PercentileGraph(520, 30, 300, 250);
 	RNG rng;
 	std::string worldName;
 	uint32_t worldSeed;
