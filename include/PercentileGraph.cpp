@@ -17,10 +17,18 @@ void PercentileGraph::draw()
 	float xOffset = x * screenWidthRatio + guiScale;
 	float yOffset = y * screenHeightRatio + guiScale;
 	float yScale = height / (maxValue - minValue);
-
-	int startGen = std::max(0, world->viewGeneration - dataPoints);
-	int endGen = std::max(world->viewGeneration, dataPoints);
 	
+	int startGen;
+	int endGen;
+	if (world->viewGeneration + dataPoints / 2 < world->generation) {
+		startGen = std::max(0, world->viewGeneration - dataPoints / 2);
+		endGen = std::max(world->viewGeneration + dataPoints / 2, dataPoints);
+	}
+	else {
+		startGen = std::max(0, world->generation - dataPoints);
+		endGen = std::max(world->generation, dataPoints);
+	}
+
 	std::string startLabel = std::format("{}", startGen);
 	std::string endLabel = std::format("{}", endGen);
 
@@ -89,6 +97,14 @@ void PercentileGraph::draw()
 		rlEnd();
 	}
 	DrawRectangleLinesB(x, y, width / 2, height / 2, 2, BLACK);
+	int genRange = endGen - startGen;
+	int currentDrawGen = world->viewGeneration - startGen;
+
+	float widthScale = (float)width*currentGuiScale / (genRange - 1); 
+
+	// Draw vertical green line at the position of currentDrawGen
+	float xLine = xOffset + 2 + widthScale * currentDrawGen / 1.03 ;
+	DrawRectangle(xLine, yOffset, guiScale, (height - 3) * currentGuiScale, GREEN);
 }
 
 void PercentileGraph::updateExtremeValues() // Only called when new data is added, so only the last point of the first and last vector is checked.
