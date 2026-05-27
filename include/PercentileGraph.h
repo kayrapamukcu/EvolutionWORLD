@@ -18,14 +18,11 @@ public:
 	std::array<Color, 15> percentileColors;
 	Color backgroundColor = { 200, 200, 200, 255 };
 
-	RenderTexture2D renderTex;
-
 	void draw();
 	void updateExtremeValues();
 	void compressGraph();
 
 	PercentileGraph(int xPos, int yPos, int w, int h) : x(xPos), y(yPos), width(w), height(h) {
-		renderTex = LoadRenderTexture((int)(width * (float)guiScale / 2.0f), (int)(height * (float)guiScale / 2.0f));
 		data.fill(std::vector<float>());
 		for (int i = 0; i < data.size(); ++i) {
 			data[i].reserve(maxDataPoints * 2);

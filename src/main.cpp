@@ -86,6 +86,7 @@ int main() {
 	std::vector<Notice> notices;
 	
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
+	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 	InitWindow(screenWidth, screenHeight, "EvolutionWORLD");
 
 	SetTargetFPS(FRAMES_PER_SECOND);

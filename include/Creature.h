@@ -1,6 +1,7 @@
 #pragma once
-
+#include <vector>
 #include "Helper.h"
+#include <memory>
 
 class World; // forward declaration
 
@@ -10,6 +11,7 @@ struct Node {
 	float xSpeed, ySpeed;
 	float mass;
 	float friction;
+	Node() = default;
 };
 struct Muscle {
 	uint8_t node1, node2;
@@ -18,6 +20,7 @@ struct Muscle {
 	uint8_t muscleTickCounter;
 	float length1, length2;
 	float strength;
+	Muscle() = default;
 };
 
 class Creature {
@@ -30,8 +33,8 @@ public:
 	int muscleCount = 3;
 	int nodeCount = 3;
 	int tickCounter = 0;
-	Node nodes[3];
-	Muscle muscles[3];
+	std::unique_ptr<Node[]> nodes;
+	std::unique_ptr<Muscle[]> muscles;
 
 	void reset();
 	void draw();
@@ -40,6 +43,30 @@ public:
 	void tick();
 	const float getCenterX() const;
 	Creature reproduce();
+
+	Creature() = default;
+	Creature(const Creature& other);
+	Creature& operator=(const Creature& other)
+	{
+		if (this == &other)
+			return *this;
+
+		id = other.id;
+		fitness = other.fitness;
+		muscleCount = other.muscleCount;
+		nodeCount = other.nodeCount;
+		tickCounter = other.tickCounter;
+
+		nodes = std::make_unique<Node[]>(nodeCount);
+		for (int i = 0; i < nodeCount; i++)
+			nodes[i] = other.nodes[i];
+
+		muscles = std::make_unique<Muscle[]>(muscleCount);
+		for (int i = 0; i < muscleCount; i++)
+			muscles[i] = other.muscles[i];
+
+		return *this;
+	}
 
 	static void stretchRange(float baseMin, float baseMax, float r, float& outMin, float& outMax);
 	static void updateNodeAndMuscleRangesAndVariations();

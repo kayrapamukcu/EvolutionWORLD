@@ -6,6 +6,7 @@
 #include <vector>
 #include "Creature.h"
 #include "PercentileGraph.h"
+#include <thread>
 
 class World {
 public:
@@ -24,6 +25,7 @@ public:
 	float drawSpeedMult = 1.66f;
 	float accumulatedTime = 0.0f;
 	std::unique_ptr<Creature[]> creatures;
+	
 
 	std::vector<Creature> worstGenerationalCreatures;
 	std::vector<Creature> averageGenerationalCreatures;

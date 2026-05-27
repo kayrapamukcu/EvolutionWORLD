@@ -37,6 +37,25 @@ float Creature::muscleStrengthVariation = 0.01f;
 float Creature::muscleLengthVariation = 10.0f;
 int Creature::muscleStateTicksVariation = 127;
 
+Creature::Creature(const Creature& other)
+{
+	id = other.id;
+	fitness = other.fitness;
+	muscleCount = other.muscleCount;
+	nodeCount = other.nodeCount;
+	tickCounter = other.tickCounter;
+
+	nodes = std::make_unique<Node[]>(nodeCount);
+	for (int i = 0; i < nodeCount; i++)
+		nodes[i] = other.nodes[i];
+
+	muscles = std::make_unique<Muscle[]>(muscleCount);
+	for (int i = 0; i < muscleCount; i++)
+		muscles[i] = other.muscles[i];
+}
+
+
+
 void Creature::stretchRange(float baseMin,float baseMax,float r,float& outMin,float& outMax){
 	if (r >= 1.0f) {
 		outMin = baseMin / r;
@@ -74,8 +93,13 @@ void Creature::updateNodeAndMuscleRangesAndVariations() {
 void Creature::initializeChild(Creature* parent) {
 	id = idCounter++;
 
+	nodes = std::make_unique<Node[]>(nodeCount);
+	muscles = std::make_unique<Muscle[]>(muscleCount);
+
 	float mutabilityRange = world->mutabilityRange;
 	float mutabilityFactor = world->mutabilityFactor;
+	
+	
 
 	for (int i = 0; i < nodeCount; i++) {
 		muscles[i].node1 = i;
@@ -106,7 +130,10 @@ void Creature::initializeChild(Creature* parent) {
 void Creature::initialize()
 {
 	id = idCounter++;
-	
+
+	nodes = std::make_unique<Node[]>(nodeCount);
+	muscles = std::make_unique<Muscle[]>(muscleCount);
+
 	for (int i = 0; i < nodeCount; i++) {
 		muscles[i].node1 = i;
 		muscles[i].node2 = (i + 1) % nodeCount;
@@ -215,7 +242,6 @@ const float Creature::getCenterX() const
 	return centerX;
 }
 
-
 void Creature::reset()
 {
 	for (int i = 0; i < nodeCount; ++i) {
@@ -238,12 +264,10 @@ void Creature::draw() {
 	
 	for (int i = 0; i < nodeCount; ++i) {
 		Node& n = nodes[i];
-		//Color nodeColor = { 50 + 205 - 205 * (n.friction - minNodeFriction) / frictionVariation, 255 - 255 * (n.mass - minNodeMass) / massVariation , 255 - 255 * (n.mass - minNodeMass) / massVariation , 255};
 
 		float frictionRatio = frictionVariation != 0 ? (n.friction - minNodeFriction) / frictionVariation : 0.0f;
 		float massRatio = massVariation != 0 ? (n.mass - minNodeMass) / massVariation : 0.0f;
 
-		// Clamp to [0, 1]
 		frictionRatio = std::clamp(frictionRatio, 0.0f, 1.0f);
 		massRatio = std::clamp(massRatio, 0.0f, 1.0f);
 
@@ -254,12 +278,7 @@ void Creature::draw() {
 		unsigned char red = static_cast<unsigned char>(brightness + (255 - brightness) * frictionRatio);
 
 		// Final color: only red and grayscale
-		Color nodeColor = {
-			red,
-			brightness,
-			brightness,
-			255
-		};
+		Color nodeColor = {red, brightness, brightness, 255};
 		DrawCircle(n.x,n.y,drawRadius, nodeColor);
 	}
 	for (int i = 0; i < muscleCount; i++) {

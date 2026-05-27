@@ -6,6 +6,7 @@
 #include <thread>
 #include <execution>
 #include <unordered_set>
+#include <chrono>
 
 void World::Draw(int x, int y, int width, int height) {
 	DrawRectangleB(x, y, width, height, backgroundColor);
@@ -89,15 +90,17 @@ void World::SendGenerationalDataToPercentileGraph()
 void World::DoGeneration()
 {
     generation++;
-
+    
     int totalTicks = ticksPerSecond * secondsPerSimulation;
 
     // Divide creatures into chunks for each thread
-    std::vector<std::thread> threads;
+    
     int chunkSize = numOfCreatures / numberOfThreads;
     int leftover = numOfCreatures % numberOfThreads;
 
     int start = 0;
+    std::vector<std::thread> threads;
+
     for (int t = 0; t < numberOfThreads; ++t) {
         int count = chunkSize + (t < leftover ? 1 : 0); // distribute leftovers
         int begin = start;
@@ -122,10 +125,6 @@ void World::DoGeneration()
 
 	SendGenerationalDataToPercentileGraph();
 
-    /*for (int i = 0; i < numOfCreatures; ++i) {
-		creatures[i].fitness = creatures[i].getCenterX();
-    }*/
-
 	creatures[0].fitness = creatures[0].getCenterX();
 	creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
 	creatures[numOfCreatures - 1].fitness = creatures[numOfCreatures - 1].getCenterX();
@@ -140,10 +139,6 @@ void World::DoGeneration()
 	averageGenerationalCreatures.push_back(creatures[numOfCreatures / 2]);
 	bestGenerationalCreatures.push_back(creatures[numOfCreatures - 1]);
 
-    //for (int i = 0; i < numOfCreatures / 2; ++i) {
-    //    creatures[i] = creatures[numOfCreatures - 1 - i].reproduce();
-    // }
-    
     for (int j = 0; j < numOfCreatures / 2; j++) {
         float f = static_cast<float>(j) / numOfCreatures;
         float rand = (std::pow(rng.randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;

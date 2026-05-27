@@ -28,7 +28,7 @@ inline constexpr int muscleCount = 3;
 inline constexpr int gravityConst = 98;
 inline constexpr int numOfCreatures = 1000;
 
-inline constexpr auto versionString = "v1.2.1";
+inline constexpr auto versionString = "v1.3.0";
 
 extern Font defaultFont;
 
