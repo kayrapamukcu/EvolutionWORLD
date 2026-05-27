@@ -7,9 +7,19 @@
 #include "Creature.h"
 #include "PercentileGraph.h"
 #include <thread>
+#include <condition_variable>
 
 class World {
 public:
+	std::vector<std::thread> workers;
+	std::mutex mtx;
+	std::condition_variable workerStart;
+	std::condition_variable workerDone;
+
+	int activeWorkers = 0;
+	bool terminate = false;
+	int currentTicks = 0; // Shared with workers
+
 	PercentileGraph percentileGraph = PercentileGraph(520, 30, 300, 250);
 	RNG rng;
 	std::string worldName;
@@ -25,7 +35,6 @@ public:
 	float drawSpeedMult = 1.66f;
 	float accumulatedTime = 0.0f;
 	std::unique_ptr<Creature[]> creatures;
-	
 
 	std::vector<Creature> worstGenerationalCreatures;
 	std::vector<Creature> averageGenerationalCreatures;
@@ -85,6 +94,20 @@ public:
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;	
 	}
+	~World() {
+		{
+			std::unique_lock<std::mutex> lock(mtx);
+			terminate = true; // Flip the kill switch
+		}
+
+		workerStart.notify_all();
+
+		for (auto& th : workers) {
+			if (th.joinable()) {
+				th.join();
+			}
+		}
+	}
 	static unsigned int const returnRandomWorldSeed(const std::string& entered) {
 		// if the entire string is a number, return it as a seed
 		// otherwise, return hashed seed
@@ -114,5 +137,6 @@ public:
 	void DoGeneration();
 	void InitializeWorld();
 	void SendGenerationalDataToPercentileGraph();
+	void WorkerThread(int begin, int end);
 	Creature* DrawWithCreatureCentered(int index, int generation);
 };

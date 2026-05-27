@@ -57,6 +57,23 @@ void World::InitializeWorld() {
 	for (int i = 0; i < numOfCreatures; ++i) {
 		creatures[i].initialize();
 	}
+    
+    int chunkSize = numOfCreatures / numberOfThreads;
+    int leftover = numOfCreatures % numberOfThreads;
+    int start = 0;
+
+    for (int t = 0; t < numberOfThreads; ++t) {
+        int count = chunkSize + (t < leftover ? 1 : 0);
+        int begin = start;
+        int end = begin + count;
+
+        // Spawn the threads
+        workers.emplace_back(&World::WorkerThread, this, begin, end);
+
+        start = end;
+    }
+    // sleep for 1s
+	std::this_thread::sleep_for(std::chrono::seconds(1));
     DoGeneration();
 }
 
@@ -87,38 +104,54 @@ void World::SendGenerationalDataToPercentileGraph()
     percentileGraph.updateExtremeValues();
 }
 
+void World::WorkerThread(int begin, int end)
+{
+    int localGen = generation; // Keep track of which generation this thread is on
+
+    while (true) {
+        std::unique_lock<std::mutex> lock(mtx);
+
+        workerStart.wait(lock, [this, localGen] {
+            return this->generation > localGen || terminate;
+            });
+
+        if (terminate) return;
+
+        localGen = generation;
+        int ticks = currentTicks;
+
+        lock.unlock();
+
+        for (int c = begin; c < end; ++c) {
+            for (int t = 0; t < ticks; ++t) {
+                creatures[c].tick();
+            }
+        }
+
+        lock.lock();
+        activeWorkers--;
+
+        // If this is the last thread to finish, wake up the main thread
+        if (activeWorkers == 0) {
+            workerDone.notify_one();
+        }
+    }
+}
+
 void World::DoGeneration()
 {
     generation++;
     
-    int totalTicks = ticksPerSecond * secondsPerSimulation;
+    std::unique_lock<std::mutex> lock(mtx);
 
-    // Divide creatures into chunks for each thread
-    
-    int chunkSize = numOfCreatures / numberOfThreads;
-    int leftover = numOfCreatures % numberOfThreads;
+    currentTicks = ticksPerSecond * secondsPerSimulation;
+    activeWorkers = numberOfThreads;
 
-    int start = 0;
-    std::vector<std::thread> threads;
+    // Wake up all sleeping worker threads
+    workerStart.notify_all();
 
-    for (int t = 0; t < numberOfThreads; ++t) {
-        int count = chunkSize + (t < leftover ? 1 : 0); // distribute leftovers
-        int begin = start;
-        int end = begin + count;
-
-        threads.emplace_back([this, begin, end, totalTicks]() {
-            for (int c = begin; c < end; ++c) {
-                for (int t = 0; t < totalTicks; ++t) {
-                    creatures[c].tick();
-                }
-            }
-            });
-
-        start = end;
-    }
-
-    for (auto& th : threads) th.join();
-
+    // Make the main thread sleep until activeWorkers hits 0
+    workerDone.wait(lock, [this] { return activeWorkers == 0; });
     std::sort(&creatures[0], &creatures[0] + numOfCreatures, [](Creature& a, Creature& b) {
         return a.getCenterX() < b.getCenterX();
         });
