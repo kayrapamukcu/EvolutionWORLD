@@ -246,10 +246,18 @@ struct MiniWorld {
 		printCreature(creature);
 	}
 	inline void drawtick(int x, int y, int width, int height) {
-		//DrawRectangleCentered(x, y, width, height, backgroundColor);
-		//DrawRectangleCentered(x, y + (4 * height / 5 / screenHeightRatio) * (guiScale) / 2, width, height / 5, groundColor);
+		float realWidth = width * guiScale;
+		float realHeight = height * guiScale;
+		float realX = x * screenWidthRatio - realWidth / 2.0f;
+		float realY = y * screenHeightRatio - realHeight / 2.0f;
 
-		camera.target = { (creature.getCenterX() - (screenWidth / 2) * 2.0f / guiScale) , ((float)-4 * screenHeight / 5) * 2.0f / guiScale + Creature::FLOOR_HEIGHT };
+		DrawRectangle((int)realX, (int)realY, (int)realWidth, (int)realHeight, backgroundColor);
+		DrawRectangle((int)realX, (int)realY + (int)(4.0f * realHeight / 5.0f), (int)realWidth, (int)(realHeight - 4.0f * realHeight / 5.0f), groundColor);
+
+		BeginScissorMode((int)realX, (int)realY, (int)realWidth, (int)realHeight);
+
+		camera.offset = { realX + realWidth / 2.0f, realY + 4.0f * realHeight / 5.0f };
+		camera.target = { creature.getCenterX(), (float)Creature::FLOOR_HEIGHT };
 		camera.zoom = 0.5f * guiScale;
 		BeginMode2D(camera);
 		// draw rectangles 1 meter apart (100 pixels)
@@ -260,6 +268,7 @@ struct MiniWorld {
 		}
 		creature.draw();
 		EndMode2D();
+		EndScissorMode();
 		accumulatedTime += 1.66f;
 		while (accumulatedTime > 1) {
 			creature.tick();

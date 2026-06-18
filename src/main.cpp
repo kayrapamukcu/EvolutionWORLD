@@ -283,7 +283,7 @@ int main() {
 						// Input field for ground color
 						std::string content = createMenuUIElements[i]->getContent();
 						if (content.length() == 6 && std::all_of(content.begin(), content.end(), ::isxdigit)) {
-							previewWorld.backgroundColor = ColorFromInt(std::stoi(createMenuUIElements[3]->getContent(), nullptr, 16));
+							previewWorld.groundColor = ColorFromInt(std::stoi(createMenuUIElements[3]->getContent(), nullptr, 16));
 						}
 						break;
 					}
