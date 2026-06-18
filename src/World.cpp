@@ -7,6 +7,7 @@
 #include <execution>
 #include <unordered_set>
 #include <chrono>
+#include "tinyfiledialogs.h"
 
 void World::Draw(int x, int y, int width, int height) {
 	DrawRectangleB(x, y, width, height, backgroundColor);
@@ -138,6 +139,125 @@ void World::WorkerThread(int begin, int end)
     }
 }
 
+void World::Save()
+{
+    // new file
+    const char* filters[] = { "*.WORLD" };
+
+    const char* path = tinyfd_saveFileDialog(
+        "Save file as...",
+        (worldName + ".WORLD").c_str(),
+        1,
+        filters,
+        "World files"
+    );
+
+    if (!path) {
+        return;
+    }
+
+    std::vector<Creature> vec(creatures.get(), creatures.get() + numOfCreatures);
+
+    std::ofstream out(path, std::ios::binary);
+    
+    writeValue(out, savefileVersion);
+    writeString(out, worldName);
+    writeValue(out, worldSeed);
+    writeValue(out, gravity);
+    writeValue(out, ticksPerSecond);
+    writeValue(out, secondsPerSimulation);
+    writeValue(out, numOfCreatures);
+    writeValue(out, mutabilityRange);
+    writeValue(out, mutabilityFactor);
+    writeValue(out, backgroundColor);
+    writeValue(out, groundColor);
+	writeValue(out, generation);
+    writeCreatureVector(out, vec);
+    writeCreatureVector(out, worstGenerationalCreatures);
+    writeCreatureVector(out, averageGenerationalCreatures);
+    writeCreatureVector(out, bestGenerationalCreatures);
+	writePercentileGraph(out, percentileGraph);
+
+	out.close();
+	std::cout << "World saved to " << path << std::endl;
+	notices.push_back({ "World saved: " + worldName, 3.0f });
+}
+
+bool World::Load()
+{
+    const char* filters[] = { "*.WORLD" };
+    const char* path = tinyfd_openFileDialog(
+        "Select a world file...",
+        "",
+        1,
+        filters,
+        "World files",
+        0
+    );
+    if (!path) {
+        return false;
+    }
+    std::ifstream in(path, std::ios::binary);
+    
+    try {
+        uint64_t fileVersion;
+        readValue(in, fileVersion);
+        std::string worldName;
+        uint32_t worldSeed;
+        readString(in, worldName);
+        readValue(in, worldSeed);
+		std::cout << "Loading world: " << worldName << " with seed " << worldSeed << std::endl;
+        if (fileVersion != savefileVersion) {
+            std::cerr << "Unsupported savefile version: " << fileVersion << std::endl;
+            notices.push_back({ "Expected savefile version " + std::to_string(savefileVersion) + ", got " + std::to_string(fileVersion), 5.0f });
+            return false;
+        }
+
+        world = std::make_unique<World>();
+		world->worldName = worldName;
+		world->worldSeed = worldSeed;
+        readValue(in, world->gravity);
+        readValue(in, world->ticksPerSecond);
+        readValue(in, world->secondsPerSimulation);
+        readValue(in, world->numOfCreatures);
+        readValue(in, world->mutabilityRange);
+        readValue(in, world->mutabilityFactor);
+        readValue(in, world->backgroundColor);
+        readValue(in, world->groundColor);
+        readValue(in, world->generation);
+        
+        world->viewGeneration = world->generation;
+        std::vector<Creature> vec;
+        readCreatureVector(in, vec);
+        for (int i = 0; i < world->numOfCreatures; ++i) {
+            world->creatures[i] = vec[i];
+        }
+        readCreatureVector(in, world->worstGenerationalCreatures);
+        readCreatureVector(in, world->averageGenerationalCreatures);
+        readCreatureVector(in, world->bestGenerationalCreatures);
+        readPercentileGraph(in, world->percentileGraph);
+        world->percentileGraph.world = world.get();
+        in.close();
+
+        std::cout << "World loaded from " << path << std::endl;
+        notices.push_back({ "World loaded: " + world->worldName, 2.0f });
+        return true;
+    }
+    catch (const std::exception& e) {
+		std::cerr << "Failed to load world: " << e.what() << " (most likely corrupted)" << std::endl;
+        notices.push_back({ "Failed to load world: " + std::string(e.what()) + " (most likely corrupted)", 5.0f });
+        return false;
+    }
+}
+
+void World::SaveBestCreature() {
+    std::ofstream file("bestcreature", std::ios::binary);
+    writeCreature(file, bestGenerationalCreatures[generation]);
+
+    file.close();
+}
+
+
 void World::DoGeneration()
 {
     generation++;
@@ -174,7 +294,7 @@ void World::DoGeneration()
 
     for (int j = 0; j < numOfCreatures / 2; j++) {
         float f = static_cast<float>(j) / numOfCreatures;
-        float rand = (std::pow(rng.randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
+        float rand = (std::pow(RNG::randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
 
         int j2 = (f <= rand) ? j : numOfCreatures - 1 - j;
 

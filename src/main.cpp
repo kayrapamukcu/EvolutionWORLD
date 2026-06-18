@@ -15,6 +15,8 @@
 #include <format>
 
 int guiScalePrev = 2;
+std::unique_ptr<World> world;
+const char* versionString = "v1.4.1";
 
 void ClampWindowSize() {
 	screenWidth = GetScreenWidth();
@@ -55,11 +57,6 @@ void ClampWindowSize() {
 		SetWindowSize(screenWidth, screenHeight);
 	}
 }
-
-struct Notice {
-	std::string text;
-	float duration;
-};
  
 enum State {
 	STATE_MENU_INIT,
@@ -82,8 +79,6 @@ int main() {
 
 	std::vector<std::unique_ptr<UIElement>> createMenuUIElements;
 	std::vector<std::unique_ptr<UIElement>> ingameUIElements;
-
-	std::vector<Notice> notices;
 	
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
 	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -101,8 +96,8 @@ int main() {
 		numberOfThreads = 1;
 	}
 	std::cout << "Processors: " << numberOfThreads << std::endl;
-	std::unique_ptr<World> world;
-	std::unique_ptr<World> previewWorld = std::make_unique<World>();
+
+	MiniWorld previewWorld;
 
 	int creatureIndexToBeDrawn = 0;
 	float watchTime = 0.0f;
@@ -171,7 +166,6 @@ int main() {
 
 
 			currentState = STATE_MENU;
-			world = std::make_unique<World>();
 			break;
 		case STATE_MENU:
 			
@@ -188,7 +182,12 @@ int main() {
 						currentState = STATE_CREATE;
 						break;
 					case 1: // Load World
-						notices.push_back({ "Saving / loading worlds is not implemented yet!", 2.0f });
+						if (World::Load()) {
+							StopMusicStream(musicMenu);
+							currentState = STATE_GAME;
+							dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
+							dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
+						}
 						break;
 					case 2: // Settings
 						notices.push_back({ "Settings are not implemented yet!", 2.0f });
@@ -275,7 +274,7 @@ int main() {
 						// Input field for background color
 						std::string content = createMenuUIElements[i]->getContent();
 						if (content.length() == 6 && std::all_of(content.begin(), content.end(), ::isxdigit)) {
-							previewWorld->backgroundColor = ColorFromInt(std::stoi(createMenuUIElements[2]->getContent(), nullptr, 16));
+							previewWorld.backgroundColor = ColorFromInt(std::stoi(createMenuUIElements[2]->getContent(), nullptr, 16));
 						}
 						break;
 					}
@@ -284,7 +283,7 @@ int main() {
 						// Input field for ground color
 						std::string content = createMenuUIElements[i]->getContent();
 						if (content.length() == 6 && std::all_of(content.begin(), content.end(), ::isxdigit)) {
-							previewWorld->groundColor = ColorFromInt(std::stoi(createMenuUIElements[3]->getContent(), nullptr, 16));
+							previewWorld.backgroundColor = ColorFromInt(std::stoi(createMenuUIElements[3]->getContent(), nullptr, 16));
 						}
 						break;
 					}
@@ -299,7 +298,7 @@ int main() {
 
 			// Draw preview world
 			DrawTextCentered("Preview WORLD", absoluteWidth / 2, 100, 1, BLACK);
-			previewWorld->DrawCentered(absoluteWidth / 2, absoluteHeight / 2, 110, 110);
+			previewWorld.drawtick(absoluteWidth / 2, absoluteHeight / 2, 110, 110);
 			DrawRectangleCenteredLines(absoluteWidth / 2, absoluteHeight / 2, 110, 110, 2, BLACK);
 			break;
 		case STATE_GAME:
@@ -322,7 +321,7 @@ int main() {
 						currentState = STATE_MENU_INIT;
 						break;
 					case 1: // Save
-						notices.push_back({ "Save functionality not implemented yet.", 3.0f });
+						world->Save();
 						break;
 					case 2: // Next Generation
 						timeForOneGen = GetTime();
@@ -367,6 +366,10 @@ int main() {
 				SetTargetFPS(FRAMES_PER_SECOND);
 				doGenerationsNonstop = false;
 				notices.clear();
+			}
+
+			if (IsKeyPressed(KEY_R)) {
+				world->SaveBestCreature();
 			}
 
 			world->percentileGraph.draw();

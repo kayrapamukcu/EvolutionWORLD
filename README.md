@@ -4,8 +4,6 @@ EvolutionWORLD is a creature simulation game built using C++ and Raylib.
 Creatures(currently only triangles) are made up of physics-based nodes and muscles that evolve over time through simple generational mechanics.
 The player is free to play with the world's parameters at the worlds' creation. This can lead to creatures finding different ways/strategies to walk. 
 
-Currently, the game is on Version 1.2.1 - it's in a playable state, but there's a lot to be added.
-
 
 **This project was heavily inspired by carykh's Evolution Simulator from 2015. You can take a look at his YouTube videos on it [here](https://www.youtube.com/watch?v=GOFws_hhZs8&list=PLrUdxfaFpuuK0rj55Rhc187Tn9vvxck7t).** The primary motivation for making this project was to make something similar to carykh's Evo.Sim., but make it faster by coding it in C++ and multithreading it. A secondary motivation was to make the world more customizable, and adding a save and load feature.
 

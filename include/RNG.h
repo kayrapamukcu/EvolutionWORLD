@@ -3,20 +3,20 @@
 #include <random>
 
 class RNG {
-	std::random_device rd;
-	std::mt19937 mt;
+	static inline std::random_device rd;
+	static inline std::mt19937 mt;
 public:
-	void randomSeed() {
+	static inline void randomSeed() {
 		mt.seed(rd());
 	}
-	void setSeed(unsigned int seed) {
+	static inline void setSeed(unsigned int seed) {
 		mt.seed(seed);
 	}
-	int randomInt(int min, int max) {
+	static inline int randomInt(int min, int max) {
 		std::uniform_int_distribution<int> dist(min, max);
 		return dist(mt);
 	}
-	float randomFloat(float min, float max) {
+	static inline float randomFloat(float min, float max) {
 		std::uniform_real_distribution<float> dist(min, max);
 		return dist(mt);
 	}

@@ -3,8 +3,6 @@
 #include "Helper.h"
 #include <memory>
 
-class World; // forward declaration
-
 struct Node {
 	float initialX, initialY;
 	float x, y;
@@ -25,14 +23,13 @@ struct Muscle {
 
 class Creature {
 public:
-	static World* world;
 	static int idCounter;
 	static int FLOOR_HEIGHT;
 	int id;
 	float fitness = 0.0f;
-	int muscleCount = 3;
-	int nodeCount = 3;
-	int tickCounter = 0;
+	uint8_t muscleCount = 3;
+	uint8_t nodeCount = 3;
+	uint16_t tickCounter = 0;
 	std::unique_ptr<Node[]> nodes;
 	std::unique_ptr<Muscle[]> muscles;
 

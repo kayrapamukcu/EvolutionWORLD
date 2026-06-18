@@ -2,6 +2,19 @@
 
 #include <string>
 #include <raylib.h>
+#include <vector>
+#include <memory>
+
+struct Notice {
+	std::string text;
+	float duration;
+};
+
+class World; // forward declaration
+
+extern std::unique_ptr<World> world;
+
+inline std::vector<Notice> notices;
 
 inline unsigned int numberOfThreads = 1;
 
@@ -28,7 +41,7 @@ inline constexpr int muscleCount = 3;
 inline constexpr int gravityConst = 98;
 inline constexpr int numOfCreatures = 1000;
 
-inline constexpr auto versionString = "v1.3.1";
+extern const char* versionString;
 
 extern Font defaultFont;
 
@@ -40,6 +53,7 @@ inline bool justResized = false;
 inline constexpr Color PinkWORLD = { 255 , 196 , 240 , 255 };
 inline constexpr Color LightBlueWORLD = { 173 , 216 , 230 , 255 };
 inline constexpr Color BeigeWORLD = { 240 , 188 , 120 , 255 };
+
 
 // helper functions
 

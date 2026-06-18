@@ -33,6 +33,9 @@
     <ClInclude Include="..\..\include\PercentileGraph.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\tinyfiledialogs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Button.cpp">
@@ -56,7 +59,10 @@
     <ClCompile Include="..\..\src\Slider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\include\PercentileGraph.cpp">
+    <ClCompile Include="..\..\src\PercentileGraph.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\include\tinyfiledialogs.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

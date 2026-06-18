@@ -1,0 +1,8 @@
+27/05/2026:
++ Added support for bigger creatures (still only triangles in-game for now though)
++ Threads are now pooled for improved performance
+* Made the window actually resizable (lol)
+* (Code) Added raylib files to the repo so the project can actually be compiled
+
+03/06/2026:
++ Added rudimentary saving/loading
