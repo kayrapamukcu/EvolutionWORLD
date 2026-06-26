@@ -541,11 +541,13 @@
     <ClInclude Include="..\..\include\PercentileGraph.h" />
     <ClInclude Include="..\..\include\RNG.h" />
     <ClInclude Include="..\..\include\Slider.h" />
+    <ClInclude Include="..\..\include\miniz.h" />
     <ClInclude Include="..\..\include\tinyfiledialogs.h" />
     <ClInclude Include="..\..\include\UIElement.h" />
     <ClInclude Include="..\..\include\World.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\include\miniz.c" />
     <ClCompile Include="..\..\include\tinyfiledialogs.c" />
     <ClCompile Include="..\..\src\Button.cpp" />
     <ClCompile Include="..\..\src\Creature.cpp" />

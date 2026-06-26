@@ -16,7 +16,7 @@
 
 int guiScalePrev = 2;
 std::unique_ptr<World> world;
-const char* versionString = "v1.4.1";
+const char* versionString = "v1.4.2";
 
 void ClampWindowSize() {
 	screenWidth = GetScreenWidth();

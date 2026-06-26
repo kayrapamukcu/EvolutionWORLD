@@ -7,7 +7,85 @@
 #include <execution>
 #include <unordered_set>
 #include <chrono>
+#include <cstring>
+#include <limits>
+#include "miniz.h"
 #include "tinyfiledialogs.h"
+
+namespace {
+    constexpr char compressedWorldMagic[] = { 'E', 'W', 'C', 'M', 'P', 'R', 'S', '1' };
+
+    void writeCompressedWorldFile(std::ostream& out, const std::string& uncompressedData)
+    {
+        if (uncompressedData.size() > std::numeric_limits<mz_ulong>::max()) {
+            throw std::runtime_error("Save data is too large to compress");
+        }
+
+        mz_ulong compressedSize = mz_compressBound(static_cast<mz_ulong>(uncompressedData.size()));
+        std::vector<unsigned char> compressedData(compressedSize);
+        
+        const int result = mz_compress2(
+            compressedData.data(),
+            &compressedSize,
+            reinterpret_cast<const unsigned char*>(uncompressedData.data()),
+            static_cast<mz_ulong>(uncompressedData.size()),
+            MZ_BEST_COMPRESSION
+        );
+
+        if (result != MZ_OK) {
+            throw std::runtime_error("Failed to compress save data");
+        }
+
+        const uint64_t uncompressedSize64 = static_cast<uint64_t>(uncompressedData.size());
+        const uint64_t compressedSize64 = static_cast<uint64_t>(compressedSize);
+
+        out.write(compressedWorldMagic, sizeof(compressedWorldMagic));
+        writeValue(out, uncompressedSize64);
+        writeValue(out, compressedSize64);
+        out.write(reinterpret_cast<const char*>(compressedData.data()), compressedSize);
+    }
+
+    std::string readCompressedWorldFile(std::istream& in)
+    {
+        char magic[sizeof(compressedWorldMagic)];
+        in.read(magic, sizeof(magic));
+        if (!in || std::memcmp(magic, compressedWorldMagic, sizeof(compressedWorldMagic)) != 0) {
+            throw std::runtime_error("Invalid compressed world file");
+        }
+
+        uint64_t uncompressedSize64;
+        uint64_t compressedSize64;
+        readValue(in, uncompressedSize64);
+        readValue(in, compressedSize64);
+
+        if (uncompressedSize64 > std::numeric_limits<mz_ulong>::max() ||
+            compressedSize64 > std::numeric_limits<mz_ulong>::max()) {
+            throw std::runtime_error("Compressed world file is too large");
+        }
+
+        std::vector<unsigned char> compressedData(static_cast<size_t>(compressedSize64));
+        in.read(reinterpret_cast<char*>(compressedData.data()), compressedData.size());
+        if (!in) {
+            throw std::runtime_error("Failed to read compressed world data");
+        }
+
+        std::string uncompressedData(static_cast<size_t>(uncompressedSize64), '\0');
+        mz_ulong uncompressedSize = static_cast<mz_ulong>(uncompressedSize64);
+
+        const int result = mz_uncompress(
+            reinterpret_cast<unsigned char*>(uncompressedData.data()),
+            &uncompressedSize,
+            compressedData.data(),
+            static_cast<mz_ulong>(compressedData.size())
+        );
+
+        if (result != MZ_OK || uncompressedSize != uncompressedSize64) {
+            throw std::runtime_error("Failed to decompress world data");
+        }
+
+        return uncompressedData;
+    }
+}
 
 void World::Draw(int x, int y, int width, int height) {
 	DrawRectangleB(x, y, width, height, backgroundColor);
@@ -158,29 +236,42 @@ void World::Save()
 
     std::vector<Creature> vec(creatures.get(), creatures.get() + numOfCreatures);
 
-    std::ofstream out(path, std::ios::binary);
-    
-    writeValue(out, savefileVersion);
-    writeString(out, worldName);
-    writeValue(out, worldSeed);
-    writeValue(out, gravity);
-    writeValue(out, ticksPerSecond);
-    writeValue(out, secondsPerSimulation);
-    writeValue(out, numOfCreatures);
-    writeValue(out, mutabilityRange);
-    writeValue(out, mutabilityFactor);
-    writeValue(out, backgroundColor);
-    writeValue(out, groundColor);
-	writeValue(out, generation);
-    writeCreatureVector(out, vec);
-    writeCreatureVector(out, worstGenerationalCreatures);
-    writeCreatureVector(out, averageGenerationalCreatures);
-    writeCreatureVector(out, bestGenerationalCreatures);
-	writePercentileGraph(out, percentileGraph);
+    try {
+        std::ostringstream serialized(std::ios::binary);
 
-	out.close();
-	std::cout << "World saved to " << path << std::endl;
-	notices.push_back({ "World saved: " + worldName, 3.0f });
+        writeValue(serialized, savefileVersion);
+        writeString(serialized, worldName);
+        writeValue(serialized, worldSeed);
+        writeValue(serialized, gravity);
+        writeValue(serialized, ticksPerSecond);
+        writeValue(serialized, secondsPerSimulation);
+        writeValue(serialized, numOfCreatures);
+        writeValue(serialized, mutabilityRange);
+        writeValue(serialized, mutabilityFactor);
+        writeValue(serialized, backgroundColor);
+        writeValue(serialized, groundColor);
+	    writeValue(serialized, generation);
+        writeCreatureVector(serialized, vec);
+        writeCreatureVector(serialized, worstGenerationalCreatures);
+        writeCreatureVector(serialized, averageGenerationalCreatures);
+        writeCreatureVector(serialized, bestGenerationalCreatures);
+	    writePercentileGraph(serialized, percentileGraph);
+
+        std::ofstream out(path, std::ios::binary);
+        if (!out) {
+            throw std::runtime_error("Failed to create save file");
+        }
+
+        writeCompressedWorldFile(out, serialized.str());
+
+        out.close();
+        std::cout << "World saved to " << path << std::endl;
+        notices.push_back({ "World saved: " + worldName, 3.0f });
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Failed to save world: " << e.what() << std::endl;
+        notices.push_back({ "Failed to save world: " + std::string(e.what()), 5.0f });
+    }
 }
 
 bool World::Load()
@@ -198,14 +289,21 @@ bool World::Load()
         return false;
     }
     std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        notices.push_back({ "Failed to open world file", 5.0f });
+        return false;
+    }
     
     try {
+        std::string uncompressedData = readCompressedWorldFile(in);
+        std::istringstream dataIn(uncompressedData, std::ios::binary);
+
         uint64_t fileVersion;
-        readValue(in, fileVersion);
+        readValue(dataIn, fileVersion);
         std::string worldName;
         uint32_t worldSeed;
-        readString(in, worldName);
-        readValue(in, worldSeed);
+        readString(dataIn, worldName);
+        readValue(dataIn, worldSeed);
 		std::cout << "Loading world: " << worldName << " with seed " << worldSeed << std::endl;
         if (fileVersion != savefileVersion) {
             std::cerr << "Unsupported savefile version: " << fileVersion << std::endl;
@@ -216,26 +314,26 @@ bool World::Load()
         world = std::make_unique<World>();
 		world->worldName = worldName;
 		world->worldSeed = worldSeed;
-        readValue(in, world->gravity);
-        readValue(in, world->ticksPerSecond);
-        readValue(in, world->secondsPerSimulation);
-        readValue(in, world->numOfCreatures);
-        readValue(in, world->mutabilityRange);
-        readValue(in, world->mutabilityFactor);
-        readValue(in, world->backgroundColor);
-        readValue(in, world->groundColor);
-        readValue(in, world->generation);
+        readValue(dataIn, world->gravity);
+        readValue(dataIn, world->ticksPerSecond);
+        readValue(dataIn, world->secondsPerSimulation);
+        readValue(dataIn, world->numOfCreatures);
+        readValue(dataIn, world->mutabilityRange);
+        readValue(dataIn, world->mutabilityFactor);
+        readValue(dataIn, world->backgroundColor);
+        readValue(dataIn, world->groundColor);
+        readValue(dataIn, world->generation);
         
         world->viewGeneration = world->generation;
         std::vector<Creature> vec;
-        readCreatureVector(in, vec);
+        readCreatureVector(dataIn, vec);
         for (int i = 0; i < world->numOfCreatures; ++i) {
             world->creatures[i] = vec[i];
         }
-        readCreatureVector(in, world->worstGenerationalCreatures);
-        readCreatureVector(in, world->averageGenerationalCreatures);
-        readCreatureVector(in, world->bestGenerationalCreatures);
-        readPercentileGraph(in, world->percentileGraph);
+        readCreatureVector(dataIn, world->worstGenerationalCreatures);
+        readCreatureVector(dataIn, world->averageGenerationalCreatures);
+        readCreatureVector(dataIn, world->bestGenerationalCreatures);
+        readPercentileGraph(dataIn, world->percentileGraph);
         world->percentileGraph.world = world.get();
         in.close();
 
