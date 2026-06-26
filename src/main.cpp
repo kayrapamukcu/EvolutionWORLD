@@ -70,6 +70,7 @@ enum State {
 
 
 int main() {
+	
 	State currentState = STATE_MENU_INIT;
 	std::vector<Button> mainMenuButtons;
 

@@ -468,7 +468,6 @@
     <ClInclude Include="..\external\raylib-master\src\rcamera.h" />
     <ClInclude Include="..\external\raylib-master\src\rgestures.h" />
     <ClInclude Include="..\external\raylib-master\src\rlgl.h" />
-    <ClInclude Include="..\external\raylib-master\src\utils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\external\raylib-master\src\raudio.c" />
@@ -478,7 +477,6 @@
     <ClCompile Include="..\external\raylib-master\src\rshapes.c" />
     <ClCompile Include="..\external\raylib-master\src\rtext.c" />
     <ClCompile Include="..\external\raylib-master\src\rtextures.c" />
-    <ClCompile Include="..\external\raylib-master\src\utils.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
