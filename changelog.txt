@@ -6,3 +6,8 @@
 
 03/06/2026:
 + Added rudimentary saving/loading
+
+27/06/2026:
++ Saved worlds are now compressed
+* (Code) Switched to Raylib 6.0, which adds support for software rendering
+

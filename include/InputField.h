@@ -9,7 +9,7 @@ class InputField : public UIElement {
 public:
 	static constexpr int FRAMES_TO_CONTINUOUSLY_PRESS = FRAMES_PER_SECOND / 2;
 	int keyPressFrameCounter = FRAMES_TO_CONTINUOUSLY_PRESS;
-	int maxChars;
+	int maxCodepoints;
 	std::string text;
 
 	InputField(int id, int xPos, int yPos, int w, int h, const std::string& buttonText) {
@@ -20,7 +20,7 @@ public:
 		height = h;
 		name = buttonText;
 		text = "";
-		maxChars = 16; // Default max characters
+		maxCodepoints = 16; // Default max characters
 	}
 	InputField(int id, int xPos, int yPos, int w, int h, const std::string& buttonText, const std::string& defaultText, int ch) {
 		elementID = id;
@@ -30,7 +30,7 @@ public:
 		height = h;
 		name = buttonText;
 		text = defaultText;
-		maxChars = ch;
+		maxCodepoints = ch;
 		active = false;
 	}
 	void draw() override;

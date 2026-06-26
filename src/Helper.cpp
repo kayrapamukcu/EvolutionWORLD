@@ -4,30 +4,30 @@ Font defaultFont;
 
 void DrawTextCentered(const std::string& text, int x, int y, int fontScale, Color color) {
 	
-	 Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale);
-	 DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio - textSize.x / 2, y * screenHeightRatio - textSize.y / 2 } , defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale, color);
+	 Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale);
+	 DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio - textSize.x / 2, y * screenHeightRatio - textSize.y / 2 } , 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
 }
 
 void DrawTextCenteredHorizontal(const std::string& text, int x, int y, int fontScale, Color color) {
 
-	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale);
-	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio - textSize.x / 2, y - textSize.y / 2 }, defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale, color);
+	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale);
+	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio - textSize.x / 2, y - textSize.y / 2 }, 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
 }
 
 void DrawTextB(const std::string& text, int x, int y, int fontScale, Color color)
 {
-	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale, color);
+	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
 }
 
 void DrawTextC(const std::string& text, int x, int y, int fontScale, Color color)
 {
-	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, defaultFont.baseSize * fontScale * guiScale, fontScale * guiScale, color);
+	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
 }
 
 void DrawTextCenteredNoScale(const std::string& text, int x, int y, int fontSize, Color color)
 {
-	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), defaultFont.baseSize * fontSize, fontSize);
-	DrawTextEx(defaultFont, text.c_str(), { x - textSize.x / 2, y - textSize.y / 2 }, defaultFont.baseSize * fontSize, fontSize, color);
+	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), 0.5 * defaultFont.baseSize * fontSize, 0.5 * fontSize);
+	DrawTextEx(defaultFont, text.c_str(), { x - textSize.x / 2, y - textSize.y / 2 }, 0.5 * defaultFont.baseSize * fontSize, 0.5 * fontSize, color);
 }
 
 Rectangle DrawRectangleB(int x, int y, int w, int h, Color color)

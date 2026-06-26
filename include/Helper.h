@@ -47,7 +47,7 @@ extern Font defaultFont;
 
 inline bool inputActive = true;
 
-inline int guiScale = 2;
+inline int guiScale = 1;
 inline bool justResized = false;
 
 inline constexpr Color PinkWORLD = { 255 , 196 , 240 , 255 };

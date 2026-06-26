@@ -1,6 +1,34 @@
 #include "InputField.h"
 #include "Helper.h"
 
+namespace {
+	bool IsAcceptedInputCodepoint(int codepoint)
+	{
+		return codepoint >= 32 && codepoint != 127;
+	}
+
+	void AppendCodepointAsUtf8(std::string& text, int codepoint)
+	{
+		int utf8Size = 0;
+		const char* utf8 = CodepointToUTF8(codepoint, &utf8Size);
+		if (utf8 != nullptr && utf8Size > 0) {
+			text.append(utf8, utf8Size);
+		}
+	}
+
+	void EraseLastUtf8Codepoint(std::string& text)
+	{
+		if (text.empty()) return;
+
+		size_t start = text.size() - 1;
+		while (start > 0 && (static_cast<unsigned char>(text[start]) & 0xC0) == 0x80) {
+			start--;
+		}
+
+		text.erase(start);
+	}
+}
+
 void InputField::draw()
 {
 	if (active) {
@@ -31,19 +59,19 @@ void InputField::tick()
 
 	int key = GetCharPressed();
 	while (key > 0) {
-		if ((key >= 32) && (key <= 125) && (text.length() < maxChars)) {
-			text += key;
+		if (IsAcceptedInputCodepoint(key) && GetCodepointCount(text.c_str()) < maxCodepoints) {
+			AppendCodepointAsUtf8(text, key);
 		}
 		key = GetCharPressed();
 	}
 
 	if (IsKeyDown(KEY_BACKSPACE)) {
 		if (keyPressFrameCounter == FRAMES_TO_CONTINUOUSLY_PRESS && !text.empty()) {
-			text.pop_back();
+			EraseLastUtf8Codepoint(text);
 		}
 		keyPressFrameCounter--;
 		if (keyPressFrameCounter < 0 && !text.empty()) {
-			text.pop_back();
+			EraseLastUtf8Codepoint(text);
 		}
 	}
 	else {

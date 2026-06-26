@@ -16,7 +16,24 @@
 
 int guiScalePrev = 2;
 std::unique_ptr<World> world;
-const char* versionString = "v1.4.2";
+const char* versionString = "v1.5.0dev";
+
+std::vector<int> CreateUIFontCodepoints() {
+	std::vector<int> codepoints;
+	auto addRange = [&codepoints](int first, int last) {
+		for (int codepoint = first; codepoint <= last; ++codepoint) {
+			codepoints.push_back(codepoint);
+		}
+	};
+
+	addRange(0x0020, 0x007E); // Basic Latin
+	addRange(0x00A0, 0x024F); // Latin-1 Supplement, Latin Extended-A/B
+	addRange(0x0370, 0x03FF); // Greek and Coptic
+	addRange(0x0400, 0x052F); // Cyrillic and Cyrillic Supplement
+	addRange(0x2000, 0x206F); // General punctuation
+
+	return codepoints;
+}
 
 void ClampWindowSize() {
 	screenWidth = GetScreenWidth();
@@ -42,8 +59,8 @@ void ClampWindowSize() {
 		needsResize = true;
 	}
 
-	int guiScaleWidth = screenWidth * 2 / float(minWidth);
-	int guiScaleHeight = screenHeight * 2 / float(minHeight);
+	int guiScaleWidth = screenWidth / float(minWidth);
+	int guiScaleHeight = screenHeight / float(minHeight);
 
 	guiScale = std::min(guiScaleWidth, guiScaleHeight);
 
@@ -88,7 +105,9 @@ int main() {
 	SetTargetFPS(FRAMES_PER_SECOND);
 	InitAudioDevice();
 	Music musicMenu = LoadMusicStream("resources/mus_menu.ogg");
-	defaultFont = LoadFont("resources/romulus.png");
+	std::vector<int> uiFontCodepoints = CreateUIFontCodepoints();
+	defaultFont = LoadFontEx("resources/Lato-Regular.ttf", 72, uiFontCodepoints.data(), (int)uiFontCodepoints.size());
+
 	SetMusicVolume(musicMenu, 0.5f);
 	SetMusicPitch(musicMenu, 0.0f);
 
@@ -144,11 +163,10 @@ int main() {
 			createMenuUIElements.push_back(std::make_unique<Button>(1, 60, 450, 50, 25, "Back"));
 			
 			createMenuUIElements.push_back(std::make_unique<Slider>(200, absoluteWidth - 160, 112, 130, 20, "Creature Count", 100, 2500, numOfCreatures));
-			createMenuUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth - 160, 172, 130, 20, "Ticks per Second", 50, 150, ticksPerSecond));
-			createMenuUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 232, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
-			createMenuUIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 292, 130, 20, "Mutability Range", 1, 200, 100));
-			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 352, 130, 20, "Mutability Factor", 1, 500, 100));
-			createMenuUIElements.push_back(std::make_unique<Slider>(205, absoluteWidth - 160, 412, 130, 20, "Gravity", 20, 1000, gravityConst));
+			createMenuUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 172, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
+			createMenuUIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 232, 130, 20, "Mutability Range", 1, 200, 100));
+			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 292, 130, 20, "Mutability Factor", 1, 500, 100));
+			createMenuUIElements.push_back(std::make_unique<Slider>(205, absoluteWidth - 160, 352, 130, 20, "Gravity", 20, 1000, gravityConst));
 
 			// ingame UI elements setup
 
@@ -172,6 +190,7 @@ int main() {
 			
 			ClearBackground( PinkWORLD );
 			DrawTextCentered("EvolutionWORLD " + std::string(versionString), absoluteWidth / 2, 32, 2, BLACK);	
+
 			for (int i = 0; i < mainMenuButtons.size(); i++) {
 
 				mainMenuButtons[i].draw();
@@ -252,12 +271,11 @@ int main() {
 						world = std::make_unique<World>(
 							createMenuUIElements[0]->getContent(), // worldName
 							createMenuUIElements[1]->getContent(), // worldSeed
-							std::stoi(createMenuUIElements[11]->getContent()), // gravity
+							std::stoi(createMenuUIElements[10]->getContent()), // gravity
 							std::stoi(createMenuUIElements[6]->getContent()), // numOfCreatures
-							std::stoi(createMenuUIElements[7]->getContent()), // ticksPerSecond
-							std::stoi(createMenuUIElements[8]->getContent()), // secondsPerSimulation
-							std::stoi(createMenuUIElements[9]->getContent()), // mutabilityRange
-							std::stoi(createMenuUIElements[10]->getContent()), // mutabilityFactor
+							std::stoi(createMenuUIElements[7]->getContent()), // secondsPerSimulation
+							std::stoi(createMenuUIElements[8]->getContent()), // mutabilityRange
+							std::stoi(createMenuUIElements[9]->getContent()), // mutabilityFactor
 							backgroundColor,
 							groundColor
 						);

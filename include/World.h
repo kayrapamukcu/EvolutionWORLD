@@ -321,7 +321,7 @@ public:
 		numOfCreatures = 1000;
 		mutabilityRange = 1.0f;
 		mutabilityFactor = 1.0f;
-		drawSpeedMult = 1.66f;
+		drawSpeedMult = 1.6666666f;
 		gravity = 98;
 		RNG::setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
@@ -334,18 +334,18 @@ public:
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;
 	}
-	World(const std::string& n, const std::string& s, int grav, int nc, int tps, int sps, int mr, int mf, Color bc, Color gc) :
+	World(const std::string& n, const std::string& s, int grav, int nc, int sps, int mr, int mf, Color bc, Color gc) :
 		backgroundColor(bc),
 		groundColor(gc)
 	{
 		worldName = n;
 		worldSeed = returnRandomWorldSeed(s); // Convert hex string to unsigned long long
-		ticksPerSecond = tps;
+		ticksPerSecond = 100;
 		secondsPerSimulation = sps;
 		numOfCreatures = nc;
 		mutabilityRange = (float)mr / 100;
 		mutabilityFactor = (float)mf / 100;
-		drawSpeedMult = (float)tps / (float)FRAMES_PER_SECOND;
+		drawSpeedMult = 1.6666666f;
 		gravity = grav;
 		RNG::setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);

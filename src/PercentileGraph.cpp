@@ -32,13 +32,13 @@ void PercentileGraph::draw()
 	std::string startLabel = std::format("{}", startGen);
 	std::string endLabel = std::format("{}", endGen);
 
-	int labelFontSize = defaultFont.baseSize * guiScale;
+	int labelFontSize = 0.25 * defaultFont.baseSize * guiScale;
 	int startLabelWidth = MeasureText(startLabel.c_str(), labelFontSize);
 	int endLabelWidth = MeasureText(endLabel.c_str(), labelFontSize);
 
 	// Draw generation labels
-	DrawTextEx(defaultFont, startLabel.c_str(), { xOffset - startLabelWidth + 4 * guiScale , yOffset + height * currentGuiScale + 4 * guiScale }, labelFontSize, 1 * guiScale, BLACK);
-	DrawTextEx(defaultFont, endLabel.c_str(), { xOffset + width * currentGuiScale - endLabelWidth, yOffset + height * currentGuiScale + 4 * guiScale}, labelFontSize, 1 * guiScale, BLACK);
+	DrawTextEx(defaultFont, startLabel.c_str(), { xOffset - startLabelWidth + 4 * guiScale , yOffset + height * currentGuiScale + 4 * guiScale }, labelFontSize, 0.25 * guiScale, BLACK);
+	DrawTextEx(defaultFont, endLabel.c_str(), { xOffset + width * currentGuiScale - endLabelWidth, yOffset + height * currentGuiScale + 4 * guiScale}, labelFontSize, 0.25 * guiScale, BLACK);
 
 	// marker lines
 
@@ -73,7 +73,7 @@ void PercentileGraph::draw()
 
 		std::string label = std::format("{:.1f}", markerValue);
 		int labelWidth = MeasureText(label.c_str(), labelFontSize);
-		DrawTextEx(defaultFont, label.c_str(), { xOffset - labelWidth - 6*guiScale, yPos - labelFontSize / 2 }, labelFontSize, 1 * guiScale, GRAY);
+		DrawTextEx(defaultFont, label.c_str(), { xOffset - labelWidth - 6*guiScale, yPos - labelFontSize / 2 }, labelFontSize, 0.25 * guiScale, GRAY);
 
 		markerValue += tickStep;
 	}
