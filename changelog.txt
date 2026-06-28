@@ -1,5 +1,5 @@
 27/05/2026:
-+ Added support for bigger creatures (still only triangles in-game for now though)
++ Added partial support for bigger creatures
 + Threads are now pooled for improved performance
 * Made the window actually resizable (lol)
 * (Code) Added raylib files to the repo so the project can actually be compiled
@@ -15,7 +15,8 @@
 + Added Settings menu
 + Game no longer freezes when doing generations / loading / saving
 * Changed buttons around a bit
-* (Code) Changed UI rendering a lot, everything should scale much better than before
+* Changed the font
+* (Code) Changed GUI code a lot, everything should scale much better than before
 
 29/06/2026:
 + Settings now get saved
