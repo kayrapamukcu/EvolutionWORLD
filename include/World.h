@@ -9,6 +9,7 @@
 #include "PercentileGraph.h"
 #include <thread>
 #include <condition_variable>
+#include <atomic>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -16,6 +17,7 @@
 
 // 0 : v1.4.0
 // 1 : v1.4.1
+// 1 : v1.5.0 (but incompatible with older versions; compression added)
 constexpr uint64_t savefileVersion = 1;
 
 // Helper functions for reading/writing binary data
@@ -183,9 +185,6 @@ inline void readPercentileGraph(std::istream& in, PercentileGraph& g) {
 	g.world = nullptr;
 }
 
-void printCreature(const Creature& c);
-
-
 struct Savefile {
 	uint64_t savefileVersion;
 	std::string worldName;
@@ -244,7 +243,6 @@ struct MiniWorld {
 		std::string creatureDataStr(reinterpret_cast<const char*>(creature_data), creature_data_len);
 		std::istringstream in(creatureDataStr, std::ios::binary);
 		readCreature(in, creature);
-		printCreature(creature);
 	}
 	inline void drawtick(int x, int y, int width, int height) {
 		Rectangle viewport = DrawRectUI(x, y, width, height, backgroundColor, UIAnchor::Center);
@@ -287,6 +285,7 @@ class World {
 public:
 	std::vector<std::thread> workers;
 	std::mutex mtx;
+	std::mutex dataMutex;
 	std::condition_variable workerStart;
 	std::condition_variable workerDone;
 
@@ -414,38 +413,38 @@ public:
 	void StartWorkerThreads();
 	void SendGenerationalDataToPercentileGraph();
 	void WorkerThread(int begin, int end);
-	void Save();
+	void Save(std::atomic<bool>* workStarted = nullptr);
 	static bool Load();
-	static std::unique_ptr<World> LoadFromDialog();
+	static std::unique_ptr<World> LoadFromDialog(std::atomic<bool>* workStarted = nullptr);
 	Creature* DrawWithCreatureCentered(int index, int generation);
-};
 
-inline void printCreature(const Creature& c) {
-	std::cout << "Creature ID: " << c.id << "\n";
-	std::cout << "Fitness: " << c.fitness << "\n";
-	std::cout << "Muscle Count: " << c.muscleCount << "\n";
-	std::cout << "Node Count: " << c.nodeCount << "\n";
-	std::cout << "Tick Counter: " << c.tickCounter << "\n";
-	std::cout << "Nodes:\n";
-	for (int i = 0; i < c.nodeCount; ++i) {
-		const Node& n = c.nodes[i];
-		std::cout << "  Node " << i << ": initialX=" << n.initialX << ", initialY=" << n.initialY
-			<< ", x=" << n.x << ", y=" << n.y
-			<< ", xSpeed=" << n.xSpeed << ", ySpeed=" << n.ySpeed
-			<< ", mass=" << n.mass << ", friction=" << n.friction << "\n";
+	inline void printCreature(const Creature& c) {
+		std::cout << "Creature ID: " << c.id << "\n";
+		std::cout << "Fitness: " << c.fitness << "\n";
+		std::cout << "Muscle Count: " << c.muscleCount << "\n";
+		std::cout << "Node Count: " << c.nodeCount << "\n";
+		std::cout << "Tick Counter: " << c.tickCounter << "\n";
+		std::cout << "Nodes:\n";
+		for (int i = 0; i < c.nodeCount; ++i) {
+			const Node& n = c.nodes[i];
+			std::cout << "  Node " << i << ": initialX=" << n.initialX << ", initialY=" << n.initialY
+				<< ", x=" << n.x << ", y=" << n.y
+				<< ", xSpeed=" << n.xSpeed << ", ySpeed=" << n.ySpeed
+				<< ", mass=" << n.mass << ", friction=" << n.friction << "\n";
+		}
+		std::cout << "Muscles:\n";
+		for (int i = 0; i < c.muscleCount; ++i) {
+			const Muscle& m = c.muscles[i];
+			std::cout << "  Muscle " << i << ": node1=" << (int)m.node1
+				<< ", node2=" << (int)m.node2
+				<< ", state1Ticks=" << m.state1Ticks
+				<< ", state2Ticks=" << m.state2Ticks
+				<< ", currentMuscleStage=" << m.currentMuscleStage
+				<< ", muscleTickCounter=" << (int)m.muscleTickCounter
+				<< ", length1=" << m.length1
+				<< ", length2=" << m.length2
+				<< ", strength=" << m.strength << "\n";
+		}
+		std::cout << "gravity: " << World::gravity << "\n";
 	}
-	std::cout << "Muscles:\n";
-	for (int i = 0; i < c.muscleCount; ++i) {
-		const Muscle& m = c.muscles[i];
-		std::cout << "  Muscle " << i << ": node1=" << (int)m.node1
-			<< ", node2=" << (int)m.node2
-			<< ", state1Ticks=" << m.state1Ticks
-			<< ", state2Ticks=" << m.state2Ticks
-			<< ", currentMuscleStage=" << m.currentMuscleStage
-			<< ", muscleTickCounter=" << (int)m.muscleTickCounter
-			<< ", length1=" << m.length1
-			<< ", length2=" << m.length2
-			<< ", strength=" << m.strength << "\n";
-	}
-	std::cout << "gravity: " << World::gravity << "\n";
-}
+};

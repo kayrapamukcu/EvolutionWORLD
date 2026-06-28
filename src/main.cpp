@@ -11,6 +11,7 @@
 #include "Slider.h"
 #include "UIElement.h"
 #include <thread>
+#include <atomic>
 #include <chrono>
 #include <string>
 #include <format>
@@ -18,7 +19,7 @@
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v1.5.0dev";
+const char* versionString = "v1.5.0";
 
 std::vector<int> CreateUIFontCodepoints() {
 	std::vector<int> codepoints;
@@ -106,6 +107,7 @@ enum State {
 int main() {
 	
 	State currentState = STATE_MENU_INIT;
+	State settingsReturnState = STATE_MENU;
 	std::vector<Button> mainMenuButtons;
 
 	std::vector<InputField> newGameInputFields;
@@ -146,9 +148,30 @@ int main() {
 	int generationsCompletedInWindow = 0;
 	float generationsPerSecond = 0.0f;
 	bool saveInProgress = false;
+	std::atomic<bool> saveWorkStarted{ false };
 	std::future<void> saveFuture;
 	bool loadInProgress = false;
+	std::atomic<bool> loadWorkStarted{ false };
 	std::future<std::unique_ptr<World>> loadFuture;
+	bool createInProgress = false;
+	std::future<std::unique_ptr<World>> createFuture;
+	bool continuousGenerationThreadRunning = false;
+	std::future<void> continuousGenerationFuture;
+	std::atomic<bool> stopContinuousGenerations{ false };
+	std::atomic<int> continuousGenerationsCompleted{ 0 };
+	std::atomic<double> latestContinuousGenerationSeconds{ 0.0 };
+
+	auto drawBusyPanel = [](const std::string& text, float y) {
+		DrawRectUI(absoluteWidth / 2, y + 15, 360, 86, { 0, 0, 0, 255 }, UIAnchor::Center);
+		DrawTextUI(text, absoluteWidth / 2, y - 4, 1, RED, UIAnchor::Center);
+
+		int activeDot = (int)(GetTime() * 4.0) % 3;
+		for (int i = 0; i < 3; ++i) {
+			Vector2 dotPosition = UIToScreen(absoluteWidth / 2 - 22 + i * 22, y + 28);
+			float radius = (i == activeDot ? 5.0f : 3.5f) * UIScale();
+			DrawCircleV(dotPosition, radius, i == activeDot ? RED : Fade(RED, 0.45f));
+		}
+	};
 
 	float frameTime = GetFrameTime();
 	float currentTime = GetTime();
@@ -165,11 +188,18 @@ int main() {
 		if (saveInProgress && saveFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
 			saveFuture.get();
 			saveInProgress = false;
+			saveWorkStarted.store(false);
+		}
+
+		if (continuousGenerationThreadRunning && continuousGenerationFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+			continuousGenerationFuture.get();
+			continuousGenerationThreadRunning = false;
 		}
 
 		if (loadInProgress && loadFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
 			std::unique_ptr<World> loadedWorld = loadFuture.get();
 			loadInProgress = false;
+			loadWorkStarted.store(false);
 			if (loadedWorld) {
 				world = std::move(loadedWorld);
 				StopMusicStream(musicMenu);
@@ -177,6 +207,18 @@ int main() {
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
 				PushNotice("World loaded: " + world->worldName, 2.0f);
+			}
+		}
+
+		if (createInProgress && createFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+			std::unique_ptr<World> createdWorld = createFuture.get();
+			createInProgress = false;
+			if (createdWorld) {
+				world = std::move(createdWorld);
+				StopMusicStream(musicMenu);
+				currentState = STATE_GAME;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
 			}
 		}
 		
@@ -217,16 +259,17 @@ int main() {
 
 			ingameUIElements.clear();
 
-			ingameUIElements.push_back(std::make_unique<Button>(0, 170, 720, 268, 34, "Back"));
-			ingameUIElements.push_back(std::make_unique<Button>(1, 170, 670, 268, 34, "Save"));
-			ingameUIElements.push_back(std::make_unique<Button>(2, 512, 700, 268, 60, "Next Gen"));
-			ingameUIElements.push_back(std::make_unique<Button>(3, 840, 700, 268, 60, "Do Gens Cont."));
+			ingameUIElements.push_back(std::make_unique<Button>(0, 175, 720, 310, 64, "Back"));
+			ingameUIElements.push_back(std::make_unique<Button>(1, 512, 720, 310, 64, "Save"));
+			ingameUIElements.push_back(std::make_unique<Button>(2, 257, 520, 474, 64, "Next Generation"));
+			ingameUIElements.push_back(std::make_unique<Button>(3, 768, 520, 474, 64, "Do Gens Continuously"));
 																			  
-			ingameUIElements.push_back(std::make_unique<Button>(4, 170, 590, 268, 60, "Watch Worst Crtr"));
-			ingameUIElements.push_back(std::make_unique<Button>(5, 512, 590, 268, 60, "Watch Avg Crtr"));
-			ingameUIElements.push_back(std::make_unique<Button>(6, 840, 590, 268, 60, "Watch Best Crtr"));
+			ingameUIElements.push_back(std::make_unique<Button>(4, 175, 620, 310, 64, "Watch Worst Creature"));
+			ingameUIElements.push_back(std::make_unique<Button>(5, 512, 620, 310, 64, "Watch Avg Creature"));
+			ingameUIElements.push_back(std::make_unique<Button>(6, 850, 620, 310, 64, "Watch Best Creature"));
 
-			ingameUIElements.push_back(std::make_unique<Slider>(200, 300, 350, 528, 72, "View Generation", 0, 0, 0));
+			ingameUIElements.push_back(std::make_unique<Slider>(200, 300, 350, 528, 80, "View Generation", 0, 0, 0));
+			ingameUIElements.push_back(std::make_unique<Button>(7, 850, 720, 310, 64, "Settings"));
 
 			settingsUIElements.clear();
 
@@ -234,7 +277,7 @@ int main() {
 			settingsUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth / 2, 310, 420, 56, "Sound Volume", 0, 100, appSettings.soundVolume));
 			settingsUIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 405, 340, 56, ""));
 			settingsUIElements.push_back(std::make_unique<Button>(1, absoluteWidth / 2, 485, 420, 56, ""));
-			settingsUIElements.push_back(std::make_unique<Button>(3, 120, 680, 150, 64, "Back"));
+			settingsUIElements.push_back(std::make_unique<Button>(3, absoluteWidth / 2, 680, 150, 64, "Back"));
 
 			currentState = STATE_MENU;
 			break;
@@ -242,9 +285,8 @@ int main() {
 			
 			ClearBackground( PinkWORLD );
 			DrawTextUI("EvolutionWORLD " + std::string(versionString), absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
-			if (loadInProgress) {
-				DrawRectUI(absoluteWidth / 2 - 150, 680, 300, 40, { 0, 0, 0, 255 });
-				DrawTextUI("Loading world...", absoluteWidth / 2, 690, 1, RED, UIAnchor::Center);
+			if (loadInProgress && loadWorkStarted.load()) {
+				drawBusyPanel("Loading world...", 678);
 			}
 
 			for (int i = 0; i < mainMenuButtons.size(); i++) {
@@ -260,12 +302,14 @@ int main() {
 					case 1: // Load World
 						if (!loadInProgress) {
 							loadInProgress = true;
-							loadFuture = std::async(std::launch::async, [] {
-								return World::LoadFromDialog();
+							loadWorkStarted.store(false);
+							loadFuture = std::async(std::launch::async, [&loadWorkStarted] {
+								return World::LoadFromDialog(&loadWorkStarted);
 								});
 						}
 						break;
 					case 2: // Settings
+						settingsReturnState = STATE_MENU;
 						currentState = STATE_OPTIONS;
 						break;
 					case 3: // About
@@ -299,7 +343,7 @@ int main() {
 						appSettings.showGenerationsPerSecond = !appSettings.showGenerationsPerSecond;
 						break;
 					case 3:
-						currentState = STATE_MENU;
+						currentState = settingsReturnState;
 						break;
 					case 200:
 						appSettings.musicVolume = std::stoi(settingsUIElements[i]->getContent());
@@ -312,7 +356,7 @@ int main() {
 			}
 			
 			if (IsKeyPressed(KEY_B)) {
-				currentState = STATE_MENU;
+				currentState = settingsReturnState;
 			}
 			break;
 		case STATE_CREATE:
@@ -323,7 +367,7 @@ int main() {
 				createMenuUIElements[i]->tick();
 				createMenuUIElements[i]->draw();
 
-				if (createMenuUIElements[i]->active) {
+				if (createMenuUIElements[i]->active && !createInProgress) {
 					switch (createMenuUIElements[i]->elementID) {
 					case 0: // Create World
 					{
@@ -351,20 +395,28 @@ int main() {
 					
 						Color backgroundColor = ColorFromInt(bgColor);
 						Color groundColor = ColorFromInt(grColor);
+						std::string newWorldName = createMenuUIElements[0]->getContent();
+						std::string newWorldSeed = createMenuUIElements[1]->getContent();
+						int newGravity = std::stoi(createMenuUIElements[10]->getContent());
+						int newCreatureCount = std::stoi(createMenuUIElements[6]->getContent());
+						int newSecondsPerSimulation = std::stoi(createMenuUIElements[7]->getContent());
+						int newMutabilityRange = std::stoi(createMenuUIElements[8]->getContent());
+						int newMutabilityFactor = std::stoi(createMenuUIElements[9]->getContent());
 
-						world = std::make_unique<World>(
-							createMenuUIElements[0]->getContent(), // worldName
-							createMenuUIElements[1]->getContent(), // worldSeed
-							std::stoi(createMenuUIElements[10]->getContent()), // gravity
-							std::stoi(createMenuUIElements[6]->getContent()), // numOfCreatures
-							std::stoi(createMenuUIElements[7]->getContent()), // secondsPerSimulation
-							std::stoi(createMenuUIElements[8]->getContent()), // mutabilityRange
-							std::stoi(createMenuUIElements[9]->getContent()), // mutabilityFactor
-							backgroundColor,
-							groundColor
-						);
-						currentState = STATE_GAME;
-						StopMusicStream(musicMenu);
+						createInProgress = true;
+						createFuture = std::async(std::launch::async, [=] {
+							return std::make_unique<World>(
+								newWorldName,
+								newWorldSeed,
+								newGravity,
+								newCreatureCount,
+								newSecondsPerSimulation,
+								newMutabilityRange,
+								newMutabilityFactor,
+								backgroundColor,
+								groundColor
+							);
+							});
 						break;
 					}
 					case 1: // Back
@@ -403,21 +455,42 @@ int main() {
 			DrawTextUI("Preview", absoluteWidth / 2, 240, 1.2f, BLACK, UIAnchor::Center);
 			previewWorld.drawtick(absoluteWidth / 2, 395, 240, 240);
 			DrawRectUI(absoluteWidth / 2, 395, 240, 240, BLACK, UIAnchor::Center, 2);
+			if (createInProgress) {
+				drawBusyPanel("Loading world...", 678);
+			}
 			break;
 		case STATE_GAME: {
 
 			ClearBackground(BeigeWORLD);
-			DrawTextUI("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 36, 36, 1, BLACK);
 
-			bool generationFinishedThisFrame = world->FinishGenerationIfReady();
-			if (generationFinishedThisFrame) {
+			bool generationFinishedThisFrame = !continuousGenerationThreadRunning && world->FinishGenerationIfReady();
+			int continuousGenerationsFinishedThisFrame = continuousGenerationsCompleted.exchange(0);
+			if (continuousGenerationsFinishedThisFrame > 0) {
+				generationFinishedThisFrame = true;
+				timeForOneGen = (float)latestContinuousGenerationSeconds.load();
+				generationsCompletedInWindow += continuousGenerationsFinishedThisFrame;
+			}
+
+			if (generationFinishedThisFrame && continuousGenerationsFinishedThisFrame == 0) {
 				timeForOneGen = (float)(GetTime() - generationStartTime);
-				std::cout << "Generation " << world->generation << " took " << timeForOneGen << " seconds.\n";
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
+				int currentGeneration = 0;
+				{
+					std::lock_guard<std::mutex> dataLock(world->dataMutex);
+					currentGeneration = world->generation;
+				}
+				std::cout << "Generation " << currentGeneration << " took " << timeForOneGen << " seconds.\n";
+			}
+
+			if (generationFinishedThisFrame) {
+				int currentGeneration = 0;
+				{
+					std::lock_guard<std::mutex> dataLock(world->dataMutex);
+					currentGeneration = world->generation;
+				}
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = currentGeneration;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = currentGeneration;
 
 				if (doGenerationsNonstop) {
-					generationsCompletedInWindow++;
 					double now = GetTime();
 					double elapsed = now - generationsPerSecondWindowStart;
 					if (elapsed >= 1.0) {
@@ -428,10 +501,23 @@ int main() {
 				}
 			}
 
-			DrawTextUI("Generation: " + std::to_string(world->generation), 36, 72, 2, BLACK);
-			DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 160, 1, BLACK);
-			DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 200, 1, BLACK);
-			DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 240, 1, BLACK);
+			{
+				std::unique_lock<std::mutex> dataLock(world->dataMutex, std::try_to_lock);
+				if (dataLock.owns_lock()) {
+					DrawTextUI("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 36, 36, 1, BLACK);
+					DrawTextUI("Generation: " + std::to_string(world->generation), 36, 72, 2, BLACK);
+					DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 160, 1, BLACK);
+					DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 200, 1, BLACK);
+					DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 240, 1, BLACK);
+				}
+			}
+
+			{
+				std::unique_lock<std::mutex> dataLock(world->dataMutex, std::try_to_lock);
+				if (dataLock.owns_lock()) {
+					world->percentileGraph.draw();
+				}
+			}
 
 			for (int i = 0; i < ingameUIElements.size(); i++) {
 				ingameUIElements[i]->tick();
@@ -445,9 +531,9 @@ int main() {
 						break;
 					case 1: // Save
 						saveInProgress = true;
-						PushNotice("Saving world...", 2.0f);
-						saveFuture = std::async(std::launch::async, [worldPtr = world.get()] {
-							worldPtr->Save();
+						saveWorkStarted.store(false);
+						saveFuture = std::async(std::launch::async, [worldPtr = world.get(), &saveWorkStarted] {
+							worldPtr->Save(&saveWorkStarted);
 							});
 						break;
 					case 2: // Next Generation
@@ -456,12 +542,28 @@ int main() {
 						}
 						break;
 					case 3: // Do Generations Nonstop
-						SetTargetFPS(10);
 						doGenerationsNonstop = true;
+						stopContinuousGenerations.store(false);
+						continuousGenerationsCompleted.store(0);
 						generationsCompletedInWindow = 0;
 						generationsPerSecond = 0.0f;
 						generationsPerSecondWindowStart = GetTime();
-						PushNotice("Doing generations nonstop; hold L to stop", 99999999.0f);
+						continuousGenerationThreadRunning = true;
+						continuousGenerationFuture = std::async(std::launch::async, [
+							worldPtr = world.get(),
+							&stopContinuousGenerations,
+							&continuousGenerationsCompleted,
+							&latestContinuousGenerationSeconds
+						] {
+							while (!stopContinuousGenerations.load()) {
+								auto started = std::chrono::steady_clock::now();
+								worldPtr->DoGeneration();
+								auto finished = std::chrono::steady_clock::now();
+								std::chrono::duration<double> elapsed = finished - started;
+								latestContinuousGenerationSeconds.store(elapsed.count());
+								continuousGenerationsCompleted.fetch_add(1);
+							}
+							});
 						break;
 					case 4: // See Worst Creature
 						creatureIndexToBeDrawn = 0;
@@ -475,6 +577,10 @@ int main() {
 						creatureIndexToBeDrawn = 2;
 						currentState = STATE_DRAW_CREATURE;
 						break;
+					case 7: // Options
+						settingsReturnState = STATE_GAME;
+						currentState = STATE_OPTIONS;
+						break;
 					case 200: // View Generation Slider
 						world->viewGeneration = std::stoi(ingameUIElements[i]->getContent());
 						world->percentileGraph.updateExtremeValues();
@@ -483,34 +589,44 @@ int main() {
 				}
 			}
 
-			if (doGenerationsNonstop && !world->IsGenerationInProgress()) {
+			if (doGenerationsNonstop && !continuousGenerationThreadRunning && !world->IsGenerationInProgress()) {
 				if (world->StartGeneration()) {
 					generationStartTime = GetTime();
 				}
 			}
 
-			if (IsKeyDown(KEY_L) && doGenerationsNonstop) {
-				SetTargetFPS(FRAMES_PER_SECOND);
-				doGenerationsNonstop = false;
-				generationsCompletedInWindow = 0;
-				generationsPerSecond = 0.0f;
-				generationsPerSecondWindowStart = GetTime();
-				ClearNotices();
+			if (world->IsGenerationInProgress()) {
+				if (doGenerationsNonstop) {
+					DrawRectUI(absoluteWidth / 2, 682, 460, 124, { 255, 255, 255, 255 }, UIAnchor::Center);
+					DrawRectUI(absoluteWidth / 2, 682, 460, 124, BLACK, UIAnchor::Center, 2.0f);
+					DrawTextUI("Doing generations continuously...", absoluteWidth / 2, 652, 1, BLACK, UIAnchor::Center);
+				}
+				else {
+					DrawRectUI(absoluteWidth / 2, 642, 360, 44, { 255, 255, 255, 255 }, UIAnchor::Center);
+					DrawRectUI(absoluteWidth / 2, 642, 360, 44, BLACK, UIAnchor::Center, 2.0f);
+					DrawTextUI("Generation running...", absoluteWidth / 2, 642, 1, BLACK, UIAnchor::Center);
+				}
 			}
 
-			world->percentileGraph.draw();
+			if (doGenerationsNonstop) {
+				Button stopButton(999, absoluteWidth / 2, 708, 180, 48, "Stop");
+				stopButton.draw();
+				stopButton.tick();
+				if (stopButton.active) {
+					doGenerationsNonstop = false;
+					stopContinuousGenerations.store(true);
+					generationsCompletedInWindow = 0;
+					generationsPerSecond = 0.0f;
+					generationsPerSecondWindowStart = GetTime();
+				}
+			}
 
 			if (appSettings.showGenerationsPerSecond && doGenerationsNonstop) {
-				DrawTextUI(std::format("Generations/sec: {:.2f}", generationsPerSecond), absoluteWidth - 120, 20, 1, BLACK);
+				DrawTextUI(std::format("Generations/sec: {:.2f}", generationsPerSecond), absoluteWidth - 300, 30, 0.75, BLACK);
 			}
 
-			if (world->IsGenerationInProgress()) {
-				DrawTextUI("Generation running...", absoluteWidth / 2, 690, 1, BLACK);
-			}
-
-			if (saveInProgress) {
-				DrawRectUI(absoluteWidth / 2 - 150, 680, 300, 40, { 0, 0, 0, 255 });
-				DrawTextUI("Saving world...", absoluteWidth / 2, 690, 1, RED, UIAnchor::Center);
+			if (saveInProgress && saveWorkStarted.load()) {
+				drawBusyPanel("Saving world...", 678);
 			}
 
 			break;
@@ -530,14 +646,14 @@ int main() {
 
 			watchTime += GetFrameTime();
 
-			// TODO : add a button instead, and add buttons for changing playback speed & pausing
-			if (IsKeyPressed(KEY_B)) {
+			Button creatureBackButton(998, absoluteWidth / 2, 720, 180, 56, "Back");
+			creatureBackButton.draw();
+			creatureBackButton.tick();
+			if (creatureBackButton.active) {
 				watchTime = 0.0f;
 				creature->reset();
 				currentState = STATE_GAME;
 			}
-			
-			DrawTextUI("Press B to go back!", 36, absoluteHeight - 58, 1, WHITE);
 
 			break;
 		}
@@ -561,6 +677,12 @@ int main() {
 
 		EndDrawing();
 	}
+
+	stopContinuousGenerations.store(true);
+	if (continuousGenerationFuture.valid()) {
+		continuousGenerationFuture.wait();
+	}
+
 	CloseWindow();
 	return 0;
 }

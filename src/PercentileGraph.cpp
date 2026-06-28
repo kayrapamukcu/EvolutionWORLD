@@ -7,7 +7,7 @@
 #include "World.h"
 #include <format>
 
-void PercentileGraph::draw()
+void PercentileGraph::draw() const
 {
 	Rectangle graphRect = DrawRectUI(x, y, width, height, backgroundColor);
 	

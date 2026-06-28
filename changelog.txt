@@ -12,6 +12,11 @@
 * (Code) Switched to Raylib 6.0, which adds support for software rendering
 
 28/06/2026:
-
++ Added Settings menu
++ Game no longer freezes when doing generations / loading / saving
+* Changed buttons around a bit
 * (Code) Changed UI rendering a lot, everything should scale much better than before
+
+29/06/2026:
++ Settings now get saved
 

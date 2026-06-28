@@ -111,9 +111,10 @@ Creature* World::DrawWithCreatureCentered(int index, int generation) {
         creature = &bestGenerationalCreatures[generation];
         break;
     }
-    DrawRectUI(0, 4 * absoluteHeight / 5, absoluteWidth, absoluteHeight / 5, groundColor);
+    constexpr float groundTopRatio = 0.75f;
+    DrawRectUI(0, absoluteHeight * groundTopRatio, absoluteWidth, absoluteHeight * (1.0f - groundTopRatio), groundColor);
 
-	const Vector2 groundScreen = UIToScreen(absoluteWidth / 2.0f, 4.0f * absoluteHeight / 5.0f);
+	const Vector2 groundScreen = UIToScreen(absoluteWidth / 2.0f, absoluteHeight * groundTopRatio);
 	camera.offset = groundScreen;
     camera.target = { creature->getCenterX(), (float)Creature::FLOOR_HEIGHT };
     camera.zoom = 1.0f * UIScale();
@@ -194,7 +195,11 @@ void World::SendGenerationalDataToPercentileGraph()
 
 void World::WorkerThread(int begin, int end)
 {
-    int localGen = generation; // Keep track of which generation this thread is on
+    int localGen;
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        localGen = generation - 1; // Process an already-started generation if this worker starts late.
+    }
 
     while (true) {
         std::unique_lock<std::mutex> lock(mtx);
@@ -226,7 +231,7 @@ void World::WorkerThread(int begin, int end)
     }
 }
 
-void World::Save()
+void World::Save(std::atomic<bool>* workStarted)
 {
     // new file
     const char* filters[] = { "*.WORLD" };
@@ -243,30 +248,70 @@ void World::Save()
         return;
     }
 
-    std::vector<Creature> vec(creatures.get(), creatures.get() + numOfCreatures);
+    if (workStarted) {
+        workStarted->store(true);
+    }
+
+    std::string savePath = path;
+    std::string worldNameSnapshot;
+    uint32_t worldSeedSnapshot;
+    int gravitySnapshot;
+    int ticksPerSecondSnapshot;
+    int secondsPerSimulationSnapshot;
+    int numOfCreaturesSnapshot;
+    float mutabilityRangeSnapshot;
+    float mutabilityFactorSnapshot;
+    Color backgroundColorSnapshot;
+    Color groundColorSnapshot;
+    int generationSnapshot;
+    std::vector<Creature> creaturesSnapshot;
+    std::vector<Creature> worstGenerationalCreaturesSnapshot;
+    std::vector<Creature> averageGenerationalCreaturesSnapshot;
+    std::vector<Creature> bestGenerationalCreaturesSnapshot;
+    PercentileGraph percentileGraphSnapshot(610, 70, 360, 340);
+
+    {
+        std::lock_guard<std::mutex> dataLock(dataMutex);
+        worldNameSnapshot = worldName;
+        worldSeedSnapshot = worldSeed;
+        gravitySnapshot = gravity;
+        ticksPerSecondSnapshot = ticksPerSecond;
+        secondsPerSimulationSnapshot = secondsPerSimulation;
+        numOfCreaturesSnapshot = numOfCreatures;
+        mutabilityRangeSnapshot = mutabilityRange;
+        mutabilityFactorSnapshot = mutabilityFactor;
+        backgroundColorSnapshot = backgroundColor;
+        groundColorSnapshot = groundColor;
+        generationSnapshot = generation;
+        creaturesSnapshot.assign(creatures.get(), creatures.get() + numOfCreatures);
+        worstGenerationalCreaturesSnapshot = worstGenerationalCreatures;
+        averageGenerationalCreaturesSnapshot = averageGenerationalCreatures;
+        bestGenerationalCreaturesSnapshot = bestGenerationalCreatures;
+        percentileGraphSnapshot = percentileGraph;
+    }
 
     try {
         std::ostringstream serialized(std::ios::binary);
 
         writeValue(serialized, savefileVersion);
-        writeString(serialized, worldName);
-        writeValue(serialized, worldSeed);
-        writeValue(serialized, gravity);
-        writeValue(serialized, ticksPerSecond);
-        writeValue(serialized, secondsPerSimulation);
-        writeValue(serialized, numOfCreatures);
-        writeValue(serialized, mutabilityRange);
-        writeValue(serialized, mutabilityFactor);
-        writeValue(serialized, backgroundColor);
-        writeValue(serialized, groundColor);
-	    writeValue(serialized, generation);
-        writeCreatureVector(serialized, vec);
-        writeCreatureVector(serialized, worstGenerationalCreatures);
-        writeCreatureVector(serialized, averageGenerationalCreatures);
-        writeCreatureVector(serialized, bestGenerationalCreatures);
-	    writePercentileGraph(serialized, percentileGraph);
+        writeString(serialized, worldNameSnapshot);
+        writeValue(serialized, worldSeedSnapshot);
+        writeValue(serialized, gravitySnapshot);
+        writeValue(serialized, ticksPerSecondSnapshot);
+        writeValue(serialized, secondsPerSimulationSnapshot);
+        writeValue(serialized, numOfCreaturesSnapshot);
+        writeValue(serialized, mutabilityRangeSnapshot);
+        writeValue(serialized, mutabilityFactorSnapshot);
+        writeValue(serialized, backgroundColorSnapshot);
+        writeValue(serialized, groundColorSnapshot);
+	    writeValue(serialized, generationSnapshot);
+        writeCreatureVector(serialized, creaturesSnapshot);
+        writeCreatureVector(serialized, worstGenerationalCreaturesSnapshot);
+        writeCreatureVector(serialized, averageGenerationalCreaturesSnapshot);
+        writeCreatureVector(serialized, bestGenerationalCreaturesSnapshot);
+	    writePercentileGraph(serialized, percentileGraphSnapshot);
 
-        std::ofstream out(path, std::ios::binary);
+        std::ofstream out(savePath, std::ios::binary);
         if (!out) {
             throw std::runtime_error("Failed to create save file");
         }
@@ -274,8 +319,8 @@ void World::Save()
         writeCompressedWorldFile(out, serialized.str());
 
         out.close();
-        std::cout << "World saved to " << path << std::endl;
-        PushNotice("World saved: " + worldName, 3.0f);
+        std::cout << "World saved to " << savePath << std::endl;
+        PushNotice("World saved: " + worldNameSnapshot, 3.0f);
     }
     catch (const std::exception& e) {
         std::cerr << "Failed to save world: " << e.what() << std::endl;
@@ -295,7 +340,7 @@ bool World::Load()
     return true;
 }
 
-std::unique_ptr<World> World::LoadFromDialog()
+std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
 {
     const char* filters[] = { "*.WORLD" };
     const char* path = tinyfd_openFileDialog(
@@ -308,6 +353,9 @@ std::unique_ptr<World> World::LoadFromDialog()
     );
     if (!path) {
         return nullptr;
+    }
+    if (workStarted) {
+        workStarted->store(true);
     }
     std::ifstream in(path, std::ios::binary);
     if (!in) {
@@ -390,9 +438,10 @@ bool World::StartGeneration()
             return false;
         }
 
+        std::lock_guard<std::mutex> dataLock(dataMutex);
         generation++;
         currentTicks = ticksPerSecond * secondsPerSimulation;
-        activeWorkers = numberOfThreads;
+        activeWorkers = (int)workers.size();
         generationInProgress = true;
     }
 
@@ -409,36 +458,40 @@ bool World::FinishGenerationIfReady()
         }
     }
 
-    std::sort(&creatures[0], &creatures[0] + numOfCreatures, [](Creature& a, Creature& b) {
-        return a.getCenterX() < b.getCenterX();
-        });
+    {
+        std::lock_guard<std::mutex> dataLock(dataMutex);
 
-	SendGenerationalDataToPercentileGraph();
+        std::sort(&creatures[0], &creatures[0] + numOfCreatures, [](Creature& a, Creature& b) {
+            return a.getCenterX() < b.getCenterX();
+            });
 
-	creatures[0].fitness = creatures[0].getCenterX();
-	creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
-	creatures[numOfCreatures - 1].fitness = creatures[numOfCreatures - 1].getCenterX();
+	    SendGenerationalDataToPercentileGraph();
 
-    // now fill up 
+	    creatures[0].fitness = creatures[0].getCenterX();
+	    creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
+	    creatures[numOfCreatures - 1].fitness = creatures[numOfCreatures - 1].getCenterX();
 
-    for (int i = 0; i < numOfCreatures; ++i) {
-        creatures[numOfCreatures - 1 - i].reset();
+        // now fill up 
+
+        for (int i = 0; i < numOfCreatures; ++i) {
+            creatures[numOfCreatures - 1 - i].reset();
+        }
+
+	    worstGenerationalCreatures.push_back(creatures[0]);
+	    averageGenerationalCreatures.push_back(creatures[numOfCreatures / 2]);
+	    bestGenerationalCreatures.push_back(creatures[numOfCreatures - 1]);
+
+        for (int j = 0; j < numOfCreatures / 2; j++) {
+            float f = static_cast<float>(j) / numOfCreatures;
+            float rand = (std::pow(RNG::randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
+
+            int j2 = (f <= rand) ? j : numOfCreatures - 1 - j;
+
+            creatures[j2] = creatures[numOfCreatures-j2-1].reproduce();
+        }
+
+        viewGeneration = generation;
     }
-
-	worstGenerationalCreatures.push_back(creatures[0]);
-	averageGenerationalCreatures.push_back(creatures[numOfCreatures / 2]);
-	bestGenerationalCreatures.push_back(creatures[numOfCreatures - 1]);
-
-    for (int j = 0; j < numOfCreatures / 2; j++) {
-        float f = static_cast<float>(j) / numOfCreatures;
-        float rand = (std::pow(RNG::randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
-
-        int j2 = (f <= rand) ? j : numOfCreatures - 1 - j;
-
-        creatures[j2] = creatures[numOfCreatures-j2-1].reproduce();
-    }
-
-    viewGeneration = generation;
 
     {
         std::unique_lock<std::mutex> lock(mtx);

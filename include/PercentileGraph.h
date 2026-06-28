@@ -18,7 +18,7 @@ public:
 	std::array<Color, 15> percentileColors;
 	Color backgroundColor = { 200, 200, 200, 255 };
 
-	void draw();
+	void draw() const;
 	void updateExtremeValues();
 	void compressGraph();
 
