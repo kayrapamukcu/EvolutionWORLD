@@ -10,11 +10,20 @@ struct Notice {
 	float duration;
 };
 
+struct AppSettings {
+	int musicVolume = 50;
+	int soundVolume = 50;
+	bool fullscreen = false;
+	bool showFps = false;
+	bool showGenerationsPerSecond = false;
+};
+
 class World; // forward declaration
 
 extern std::unique_ptr<World> world;
 
 inline std::vector<Notice> notices;
+inline AppSettings appSettings;
 
 inline unsigned int numberOfThreads = 1;
 

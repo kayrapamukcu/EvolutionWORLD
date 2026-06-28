@@ -35,6 +35,21 @@ std::vector<int> CreateUIFontCodepoints() {
 	return codepoints;
 }
 
+void ApplyFullscreenSetting()
+{
+	if (appSettings.fullscreen == IsWindowFullscreen()) return;
+
+	if (appSettings.fullscreen) {
+		int monitor = GetCurrentMonitor();
+		SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+		ToggleFullscreen();
+	}
+	else {
+		ToggleFullscreen();
+		SetWindowSize(absoluteWidth, absoluteHeight);
+	}
+}
+
 void ClampWindowSize() {
 	screenWidth = GetScreenWidth();
 	screenHeight = GetScreenHeight();
@@ -97,6 +112,7 @@ int main() {
 
 	std::vector<std::unique_ptr<UIElement>> createMenuUIElements;
 	std::vector<std::unique_ptr<UIElement>> ingameUIElements;
+	std::vector<std::unique_ptr<UIElement>> settingsUIElements;
 	
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
 	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -108,7 +124,7 @@ int main() {
 	std::vector<int> uiFontCodepoints = CreateUIFontCodepoints();
 	defaultFont = LoadFontEx("resources/Lato-Regular.ttf", 72, uiFontCodepoints.data(), (int)uiFontCodepoints.size());
 
-	SetMusicVolume(musicMenu, 0.5f);
+	SetMusicVolume(musicMenu, appSettings.musicVolume / 100.0f);
 	SetMusicPitch(musicMenu, 0.0f);
 
 	numberOfThreads = std::thread::hardware_concurrency();
@@ -123,6 +139,9 @@ int main() {
 	float watchTime = 0.0f;
 	bool doGenerationsNonstop = false;
 	float timeForOneGen = 0.0f;
+	double generationsPerSecondWindowStart = GetTime();
+	int generationsCompletedInWindow = 0;
+	float generationsPerSecond = 0.0f;
 
 	float frameTime = GetFrameTime();
 	float currentTime = GetTime();
@@ -134,6 +153,7 @@ int main() {
 		if (IsMusicStreamPlaying(musicMenu)) {
 			UpdateMusicStream(musicMenu);
 		}
+		SetMusicVolume(musicMenu, appSettings.musicVolume / 100.0f);
 		
 		BeginDrawing();
 
@@ -183,6 +203,14 @@ int main() {
 
 			ingameUIElements.push_back(std::make_unique<Slider>(200, 300, 350, 528, 72, "View Generation", 0, 0, 0));
 
+			settingsUIElements.clear();
+
+			settingsUIElements.push_back(std::make_unique<Slider>(200, absoluteWidth / 2, 220, 420, 56, "Music Volume", 0, 100, appSettings.musicVolume));
+			settingsUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth / 2, 310, 420, 56, "Sound Volume", 0, 100, appSettings.soundVolume));
+			settingsUIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 405, 340, 56, ""));
+			settingsUIElements.push_back(std::make_unique<Button>(1, absoluteWidth / 2, 485, 340, 56, ""));
+			settingsUIElements.push_back(std::make_unique<Button>(2, absoluteWidth / 2, 565, 420, 56, ""));
+			settingsUIElements.push_back(std::make_unique<Button>(3, 120, 680, 150, 64, "Back"));
 
 			currentState = STATE_MENU;
 			break;
@@ -210,8 +238,7 @@ int main() {
 						}
 						break;
 					case 2: // Settings
-						notices.push_back({ "Settings are not implemented yet!", 2.0f });
-						//currentState = STATE_OPTIONS;
+						currentState = STATE_OPTIONS;
 						break;
 					case 3: // About
 						notices.push_back({ "About screen not implemented yet!", 2.0f });
@@ -225,7 +252,40 @@ int main() {
 			break;
 		case STATE_OPTIONS:
 			ClearBackground(LightBlueWORLD);
-			DrawTextUI("Options", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
+			DrawTextUI("Settings", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
+
+			dynamic_cast<Button*>(settingsUIElements[2].get())->name = appSettings.fullscreen ? "Fullscreen: On" : "Fullscreen: Off";
+			dynamic_cast<Button*>(settingsUIElements[3].get())->name = appSettings.showFps ? "Show FPS: On" : "Show FPS: Off";
+			dynamic_cast<Button*>(settingsUIElements[4].get())->name = appSettings.showGenerationsPerSecond ? "Show Gens/Sec: On" : "Show Gens/Sec: Off";
+
+			for (int i = 0; i < settingsUIElements.size(); i++) {
+				settingsUIElements[i]->tick();
+				settingsUIElements[i]->draw();
+
+				if (settingsUIElements[i]->active) {
+					switch (settingsUIElements[i]->elementID) {
+					case 0:
+						appSettings.fullscreen = !appSettings.fullscreen;
+						ApplyFullscreenSetting();
+						break;
+					case 1:
+						appSettings.showFps = !appSettings.showFps;
+						break;
+					case 2:
+						appSettings.showGenerationsPerSecond = !appSettings.showGenerationsPerSecond;
+						break;
+					case 3:
+						currentState = STATE_MENU;
+						break;
+					case 200:
+						appSettings.musicVolume = std::stoi(settingsUIElements[i]->getContent());
+						break;
+					case 201:
+						appSettings.soundVolume = std::stoi(settingsUIElements[i]->getContent());
+						break;
+					}
+				}
+			}
 			
 			if (IsKeyPressed(KEY_B)) {
 				currentState = STATE_MENU;
@@ -379,6 +439,14 @@ int main() {
 			
 			if (doGenerationsNonstop) {
 				world->DoGeneration();
+				generationsCompletedInWindow++;
+				double now = GetTime();
+				double elapsed = now - generationsPerSecondWindowStart;
+				if (elapsed >= 1.0) {
+					generationsPerSecond = (float)(generationsCompletedInWindow / elapsed);
+					generationsCompletedInWindow = 0;
+					generationsPerSecondWindowStart = now;
+				}
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
 			}
@@ -386,6 +454,9 @@ int main() {
 			if (IsKeyDown(KEY_L) && doGenerationsNonstop) {
 				SetTargetFPS(FRAMES_PER_SECOND);
 				doGenerationsNonstop = false;
+				generationsCompletedInWindow = 0;
+				generationsPerSecond = 0.0f;
+				generationsPerSecondWindowStart = GetTime();
 				notices.clear();
 			}
 
@@ -394,6 +465,10 @@ int main() {
 			}
 
 			world->percentileGraph.draw();
+
+			if (appSettings.showGenerationsPerSecond && doGenerationsNonstop) {
+				DrawTextUI(std::format("Generations/sec: {:.2f}", generationsPerSecond), absoluteWidth - 330, 76, 1, BLACK);
+			}
 			
 			break;
 		case STATE_DRAW_CREATURE:
@@ -421,6 +496,10 @@ int main() {
 			DrawTextUI("Press B to go back!", 36, absoluteHeight - 58, 1, WHITE);
 
 			break;
+		}
+
+		if (appSettings.showFps) {
+			DrawTextUI(std::format("FPS: {}", GetFPS()), absoluteWidth - 160, 36, 1, BLACK);
 		}
 
 		// Draw notices
