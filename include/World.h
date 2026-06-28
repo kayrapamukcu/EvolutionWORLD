@@ -292,6 +292,7 @@ public:
 
 	int activeWorkers = 0;
 	bool terminate = false;
+	bool generationInProgress = false;
 	int currentTicks = 0; // Shared with workers
 
 	PercentileGraph percentileGraph = PercentileGraph(610, 70, 360, 340);
@@ -316,7 +317,7 @@ public:
 	Color backgroundColor;
 	Color groundColor;
 	Camera2D camera = { 0 };
-	World() :
+	World(bool initialize = true) :
 		backgroundColor({ 106, 183, 242, 255 }),
 		groundColor({ 0, 94, 0, 255 })
 	{
@@ -332,9 +333,11 @@ public:
 		RNG::setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
 		percentileGraph.world = this;
-		Creature::idCounter = 0;
-		Creature::updateNodeAndMuscleRangesAndVariations();
-		InitializeWorld();
+		if (initialize) {
+			Creature::idCounter = 0;
+			Creature::updateNodeAndMuscleRangesAndVariations();
+			InitializeWorld();
+		}
 		camera.offset = { 0, 0 };
 		camera.target = { 0, 0 };
 		camera.rotation = 0.0f;
@@ -404,12 +407,16 @@ public:
 	void Draw(int x, int y, int width, int height);
 	void DrawCentered(int x, int y, int width, int height);
 	void DoGeneration();
+	bool StartGeneration();
+	bool FinishGenerationIfReady();
+	bool IsGenerationInProgress();
 	void InitializeWorld();
+	void StartWorkerThreads();
 	void SendGenerationalDataToPercentileGraph();
 	void WorkerThread(int begin, int end);
 	void Save();
 	static bool Load();
-	void SaveBestCreature();
+	static std::unique_ptr<World> LoadFromDialog();
 	Creature* DrawWithCreatureCentered(int index, int generation);
 };
 

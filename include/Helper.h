@@ -4,6 +4,7 @@
 #include <raylib.h>
 #include <vector>
 #include <memory>
+#include <mutex>
 
 struct Notice {
 	std::string text;
@@ -14,7 +15,6 @@ struct AppSettings {
 	int musicVolume = 50;
 	int soundVolume = 50;
 	bool fullscreen = false;
-	bool showFps = false;
 	bool showGenerationsPerSecond = false;
 };
 
@@ -23,7 +23,20 @@ class World; // forward declaration
 extern std::unique_ptr<World> world;
 
 inline std::vector<Notice> notices;
+inline std::mutex noticesMutex;
 inline AppSettings appSettings;
+
+inline void PushNotice(const std::string& text, float duration)
+{
+	std::lock_guard<std::mutex> lock(noticesMutex);
+	notices.push_back({ text, duration });
+}
+
+inline void ClearNotices()
+{
+	std::lock_guard<std::mutex> lock(noticesMutex);
+	notices.clear();
+}
 
 inline unsigned int numberOfThreads = 1;
 

@@ -143,7 +143,12 @@ void World::InitializeWorld() {
 	for (int i = 0; i < numOfCreatures; ++i) {
 		creatures[i].initialize();
 	}
-    
+
+    StartWorkerThreads();
+    DoGeneration();
+}
+
+void World::StartWorkerThreads() {
     int chunkSize = numOfCreatures / numberOfThreads;
     int leftover = numOfCreatures % numberOfThreads;
     int start = 0;
@@ -158,9 +163,6 @@ void World::InitializeWorld() {
 
         start = end;
     }
-    // sleep for 1s
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-    DoGeneration();
 }
 
 void World::SendGenerationalDataToPercentileGraph()
@@ -273,15 +275,27 @@ void World::Save()
 
         out.close();
         std::cout << "World saved to " << path << std::endl;
-        notices.push_back({ "World saved: " + worldName, 3.0f });
+        PushNotice("World saved: " + worldName, 3.0f);
     }
     catch (const std::exception& e) {
         std::cerr << "Failed to save world: " << e.what() << std::endl;
-        notices.push_back({ "Failed to save world: " + std::string(e.what()), 5.0f });
+        PushNotice("Failed to save world: " + std::string(e.what()), 5.0f);
     }
 }
 
 bool World::Load()
+{
+    std::unique_ptr<World> loadedWorld = LoadFromDialog();
+    if (!loadedWorld) {
+        return false;
+    }
+
+    world = std::move(loadedWorld);
+    PushNotice("World loaded: " + world->worldName, 2.0f);
+    return true;
+}
+
+std::unique_ptr<World> World::LoadFromDialog()
 {
     const char* filters[] = { "*.WORLD" };
     const char* path = tinyfd_openFileDialog(
@@ -293,12 +307,12 @@ bool World::Load()
         0
     );
     if (!path) {
-        return false;
+        return nullptr;
     }
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        notices.push_back({ "Failed to open world file", 5.0f });
-        return false;
+        PushNotice("Failed to open world file", 5.0f);
+        return nullptr;
     }
     
     try {
@@ -314,69 +328,87 @@ bool World::Load()
 		std::cout << "Loading world: " << worldName << " with seed " << worldSeed << std::endl;
         if (fileVersion != savefileVersion) {
             std::cerr << "Unsupported savefile version: " << fileVersion << std::endl;
-            notices.push_back({ "Expected savefile version " + std::to_string(savefileVersion) + ", got " + std::to_string(fileVersion), 5.0f });
-            return false;
+            PushNotice("Expected savefile version " + std::to_string(savefileVersion) + ", got " + std::to_string(fileVersion), 5.0f);
+            return nullptr;
         }
 
-        world = std::make_unique<World>();
-		world->worldName = worldName;
-		world->worldSeed = worldSeed;
-        readValue(dataIn, world->gravity);
-        readValue(dataIn, world->ticksPerSecond);
-        readValue(dataIn, world->secondsPerSimulation);
-        readValue(dataIn, world->numOfCreatures);
-        readValue(dataIn, world->mutabilityRange);
-        readValue(dataIn, world->mutabilityFactor);
-        readValue(dataIn, world->backgroundColor);
-        readValue(dataIn, world->groundColor);
-        readValue(dataIn, world->generation);
+        auto loadedWorld = std::make_unique<World>(false);
+		loadedWorld->worldName = worldName;
+		loadedWorld->worldSeed = worldSeed;
+        readValue(dataIn, loadedWorld->gravity);
+        readValue(dataIn, loadedWorld->ticksPerSecond);
+        readValue(dataIn, loadedWorld->secondsPerSimulation);
+        readValue(dataIn, loadedWorld->numOfCreatures);
+        readValue(dataIn, loadedWorld->mutabilityRange);
+        readValue(dataIn, loadedWorld->mutabilityFactor);
+        readValue(dataIn, loadedWorld->backgroundColor);
+        readValue(dataIn, loadedWorld->groundColor);
+        readValue(dataIn, loadedWorld->generation);
         
-        world->viewGeneration = world->generation;
+        loadedWorld->viewGeneration = loadedWorld->generation;
+        loadedWorld->creatures = std::make_unique<Creature[]>(loadedWorld->numOfCreatures);
         std::vector<Creature> vec;
         readCreatureVector(dataIn, vec);
-        for (int i = 0; i < world->numOfCreatures; ++i) {
-            world->creatures[i] = vec[i];
+        for (int i = 0; i < loadedWorld->numOfCreatures; ++i) {
+            loadedWorld->creatures[i] = vec[i];
         }
-        readCreatureVector(dataIn, world->worstGenerationalCreatures);
-        readCreatureVector(dataIn, world->averageGenerationalCreatures);
-        readCreatureVector(dataIn, world->bestGenerationalCreatures);
-        readPercentileGraph(dataIn, world->percentileGraph);
-        world->percentileGraph.world = world.get();
+        readCreatureVector(dataIn, loadedWorld->worstGenerationalCreatures);
+        readCreatureVector(dataIn, loadedWorld->averageGenerationalCreatures);
+        readCreatureVector(dataIn, loadedWorld->bestGenerationalCreatures);
+        readPercentileGraph(dataIn, loadedWorld->percentileGraph);
+        loadedWorld->percentileGraph.world = loadedWorld.get();
+        loadedWorld->StartWorkerThreads();
         in.close();
 
         std::cout << "World loaded from " << path << std::endl;
-        notices.push_back({ "World loaded: " + world->worldName, 2.0f });
-        return true;
+        return loadedWorld;
     }
     catch (const std::exception& e) {
 		std::cerr << "Failed to load world: " << e.what() << " (most likely corrupted)" << std::endl;
-        notices.push_back({ "Failed to load world: " + std::string(e.what()) + " (most likely corrupted)", 5.0f });
-        return false;
+        PushNotice("Failed to load world: " + std::string(e.what()) + " (most likely corrupted)", 5.0f);
+        return nullptr;
     }
 }
 
-void World::SaveBestCreature() {
-    std::ofstream file("bestcreature", std::ios::binary);
-    writeCreature(file, bestGenerationalCreatures[generation]);
-
-    file.close();
-}
-
-
 void World::DoGeneration()
 {
-    generation++;
-    
-    std::unique_lock<std::mutex> lock(mtx);
+    if (!StartGeneration()) {
+        return;
+    }
 
-    currentTicks = ticksPerSecond * secondsPerSimulation;
-    activeWorkers = numberOfThreads;
+    while (!FinishGenerationIfReady()) {
+        std::unique_lock<std::mutex> lock(mtx);
+        workerDone.wait_for(lock, std::chrono::milliseconds(1), [this] { return activeWorkers == 0; });
+    }
+}
 
-    // Wake up all sleeping worker threads
+bool World::StartGeneration()
+{
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        if (generationInProgress) {
+            return false;
+        }
+
+        generation++;
+        currentTicks = ticksPerSecond * secondsPerSimulation;
+        activeWorkers = numberOfThreads;
+        generationInProgress = true;
+    }
+
     workerStart.notify_all();
+    return true;
+}
 
-    // Make the main thread sleep until activeWorkers hits 0
-    workerDone.wait(lock, [this] { return activeWorkers == 0; });
+bool World::FinishGenerationIfReady()
+{
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        if (!generationInProgress || activeWorkers > 0) {
+            return false;
+        }
+    }
+
     std::sort(&creatures[0], &creatures[0] + numOfCreatures, [](Creature& a, Creature& b) {
         return a.getCenterX() < b.getCenterX();
         });
@@ -407,4 +439,17 @@ void World::DoGeneration()
     }
 
     viewGeneration = generation;
+
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        generationInProgress = false;
+    }
+
+    return true;
+}
+
+bool World::IsGenerationInProgress()
+{
+    std::unique_lock<std::mutex> lock(mtx);
+    return generationInProgress;
 }
