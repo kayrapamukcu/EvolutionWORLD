@@ -16,10 +16,73 @@
 #include <string>
 #include <format>
 #include <future>
+#include <fstream>
+#include <cstdint>
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v1.5.0";
+const char* versionString = "v1.5.1";
+
+constexpr int32_t settingsFileMagic = 0x53545745; // EWTS
+constexpr int32_t settingsFileVersion = 1;
+constexpr int32_t settingsFieldCount = 4;
+
+void SaveAppSettings()
+{
+	std::ofstream out("settings", std::ios::binary);
+	if (!out) return;
+
+	auto writeInt = [&out](int32_t value) {
+		out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+		};
+
+	writeInt(settingsFileMagic);
+	writeInt(settingsFileVersion);
+	writeInt(settingsFieldCount);
+	writeInt(appSettings.musicVolume);
+	writeInt(appSettings.soundVolume);
+	writeInt(appSettings.fullscreen ? 1 : 0);
+	writeInt(appSettings.showGenerationsPerSecond ? 1 : 0);
+}
+
+void LoadAppSettings()
+{
+	std::ifstream in("settings", std::ios::binary);
+	if (!in) return;
+
+	auto readInt = [&in](int32_t& value) {
+		in.read(reinterpret_cast<char*>(&value), sizeof(value));
+		return (bool)in;
+		};
+
+	int32_t magic = 0;
+	int32_t version = 0;
+	int32_t fieldCount = 0;
+	if (!readInt(magic) || magic != settingsFileMagic) return;
+	if (!readInt(version) || !readInt(fieldCount) || fieldCount < 0) return;
+
+	for (int32_t field = 0; field < fieldCount; ++field) {
+		int32_t value = 0;
+		if (!readInt(value)) return;
+
+		switch (field) {
+		case 0:
+			appSettings.musicVolume = std::clamp(value, 0, 100);
+			break;
+		case 1:
+			appSettings.soundVolume = std::clamp(value, 0, 100);
+			break;
+		case 2:
+			appSettings.fullscreen = value != 0;
+			break;
+		case 3:
+			appSettings.showGenerationsPerSecond = value != 0;
+			break;
+		default:
+			break;
+		}
+	}
+}
 
 std::vector<int> CreateUIFontCodepoints() {
 	std::vector<int> codepoints;
@@ -117,10 +180,13 @@ int main() {
 	std::vector<std::unique_ptr<UIElement>> createMenuUIElements;
 	std::vector<std::unique_ptr<UIElement>> ingameUIElements;
 	std::vector<std::unique_ptr<UIElement>> settingsUIElements;
+
+	LoadAppSettings();
 	
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
 	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 	InitWindow(screenWidth, screenHeight, "EvolutionWORLD");
+	ApplyFullscreenSetting();
 
 	SetTargetFPS(FRAMES_PER_SECOND);
 	InitAudioDevice();
@@ -316,6 +382,7 @@ int main() {
 						PushNotice("About screen not implemented yet!", 2.0f);
 						break;
 					case 4: // Exit
+						SaveAppSettings();
 						CloseWindow();
 						return 0;
 					}
@@ -334,23 +401,37 @@ int main() {
 				settingsUIElements[i]->draw();
 
 				if (settingsUIElements[i]->active) {
+					bool settingsChanged = false;
 					switch (settingsUIElements[i]->elementID) {
 					case 0:
 						appSettings.fullscreen = !appSettings.fullscreen;
 						ApplyFullscreenSetting();
+						settingsChanged = true;
 						break;
 					case 1:
 						appSettings.showGenerationsPerSecond = !appSettings.showGenerationsPerSecond;
+						settingsChanged = true;
 						break;
 					case 3:
 						currentState = settingsReturnState;
 						break;
 					case 200:
-						appSettings.musicVolume = std::stoi(settingsUIElements[i]->getContent());
+					{
+						int newMusicVolume = std::stoi(settingsUIElements[i]->getContent());
+						settingsChanged = newMusicVolume != appSettings.musicVolume;
+						appSettings.musicVolume = newMusicVolume;
 						break;
+					}
 					case 201:
-						appSettings.soundVolume = std::stoi(settingsUIElements[i]->getContent());
+					{
+						int newSoundVolume = std::stoi(settingsUIElements[i]->getContent());
+						settingsChanged = newSoundVolume != appSettings.soundVolume;
+						appSettings.soundVolume = newSoundVolume;
 						break;
+					}
+					}
+					if (settingsChanged) {
+						SaveAppSettings();
 					}
 				}
 			}
@@ -683,6 +764,7 @@ int main() {
 		continuousGenerationFuture.wait();
 	}
 
+	SaveAppSettings();
 	CloseWindow();
 	return 0;
 }

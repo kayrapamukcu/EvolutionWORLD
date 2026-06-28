@@ -15,7 +15,7 @@ struct AppSettings {
 	int musicVolume = 50;
 	int soundVolume = 50;
 	bool fullscreen = false;
-	bool showGenerationsPerSecond = false;
+	bool showGenerationsPerSecond = true;
 };
 
 class World; // forward declaration

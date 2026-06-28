@@ -5,6 +5,7 @@
 
 .vscode/
 maps/
+settings
 
 # User-specific files
 *.rsuser
