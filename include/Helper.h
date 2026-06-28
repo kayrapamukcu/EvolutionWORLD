@@ -16,6 +16,7 @@ struct AppSettings {
 	int soundVolume = 50;
 	bool fullscreen = false;
 	bool showGenerationsPerSecond = true;
+	int maxThreadCount = 0;
 };
 
 class World; // forward declaration
@@ -39,6 +40,7 @@ inline void ClearNotices()
 }
 
 inline unsigned int numberOfThreads = 1;
+inline unsigned int hardwareThreadCount = 1;
 
 inline constexpr int FRAMES_PER_SECOND = 60;
 

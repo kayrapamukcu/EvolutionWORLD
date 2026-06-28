@@ -21,11 +21,11 @@
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v1.5.1";
+const char* versionString = "v1.5.2";
 
 constexpr int32_t settingsFileMagic = 0x53545745; // EWTS
 constexpr int32_t settingsFileVersion = 1;
-constexpr int32_t settingsFieldCount = 4;
+constexpr int32_t settingsFieldCount = 5;
 
 void SaveAppSettings()
 {
@@ -43,6 +43,7 @@ void SaveAppSettings()
 	writeInt(appSettings.soundVolume);
 	writeInt(appSettings.fullscreen ? 1 : 0);
 	writeInt(appSettings.showGenerationsPerSecond ? 1 : 0);
+	writeInt(appSettings.maxThreadCount);
 }
 
 void LoadAppSettings()
@@ -77,6 +78,9 @@ void LoadAppSettings()
 			break;
 		case 3:
 			appSettings.showGenerationsPerSecond = value != 0;
+			break;
+		case 4:
+			appSettings.maxThreadCount = value;
 			break;
 		default:
 			break;
@@ -197,15 +201,21 @@ int main() {
 	SetMusicVolume(musicMenu, appSettings.musicVolume / 100.0f);
 	SetMusicPitch(musicMenu, 0.0f);
 
-	numberOfThreads = std::thread::hardware_concurrency();
-	if (numberOfThreads == 0) {
-		numberOfThreads = 1;
+	hardwareThreadCount = std::thread::hardware_concurrency();
+	if (hardwareThreadCount == 0) {
+		hardwareThreadCount = 1;
 	}
+	if (appSettings.maxThreadCount < 1) {
+		appSettings.maxThreadCount = (int)hardwareThreadCount;
+	}
+	appSettings.maxThreadCount = std::clamp(appSettings.maxThreadCount, 1, (int)hardwareThreadCount);
+	numberOfThreads = (unsigned int)appSettings.maxThreadCount;
 	std::cout << "Processors: " << numberOfThreads << std::endl;
 
 	MiniWorld previewWorld;
 
 	int creatureIndexToBeDrawn = 0;
+	bool confirmLeaveWorld = false;
 	float watchTime = 0.0f;
 	bool doGenerationsNonstop = false;
 	float timeForOneGen = 0.0f;
@@ -228,6 +238,7 @@ int main() {
 	std::atomic<double> latestContinuousGenerationSeconds{ 0.0 };
 
 	auto drawBusyPanel = [](const std::string& text, float y) {
+		DrawRectUI(absoluteWidth / 2, y + 15, 360, 86, RED, UIAnchor::Center, 2.0f);
 		DrawRectUI(absoluteWidth / 2, y + 15, 360, 86, { 0, 0, 0, 255 }, UIAnchor::Center);
 		DrawTextUI(text, absoluteWidth / 2, y - 4, 1, RED, UIAnchor::Center);
 
@@ -343,6 +354,7 @@ int main() {
 			settingsUIElements.push_back(std::make_unique<Slider>(201, absoluteWidth / 2, 310, 420, 56, "Sound Volume", 0, 100, appSettings.soundVolume));
 			settingsUIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 405, 340, 56, ""));
 			settingsUIElements.push_back(std::make_unique<Button>(1, absoluteWidth / 2, 485, 420, 56, ""));
+			settingsUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth / 2, 570, 420, 56, "Max Threads", 1, (int)hardwareThreadCount, appSettings.maxThreadCount));
 			settingsUIElements.push_back(std::make_unique<Button>(3, absoluteWidth / 2, 680, 150, 64, "Back"));
 
 			currentState = STATE_MENU;
@@ -389,18 +401,26 @@ int main() {
 				}
 			}
 			break;
-		case STATE_OPTIONS:
+		case STATE_OPTIONS: {
 			ClearBackground(LightBlueWORLD);
 			DrawTextUI("Settings", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
 
 			dynamic_cast<Button*>(settingsUIElements[2].get())->name = appSettings.fullscreen ? "Fullscreen: On" : "Fullscreen: Off";
 			dynamic_cast<Button*>(settingsUIElements[3].get())->name = appSettings.showGenerationsPerSecond ? "Show Gens/Sec: On" : "Show Gens/Sec: Off";
+			bool maxThreadsSliderEnabled = settingsReturnState != STATE_GAME && hardwareThreadCount > 1;
 
 			for (int i = 0; i < settingsUIElements.size(); i++) {
-				settingsUIElements[i]->tick();
+				bool elementDisabled = settingsUIElements[i]->elementID == 202 && !maxThreadsSliderEnabled;
+				if (!elementDisabled) {
+					settingsUIElements[i]->tick();
+				}
 				settingsUIElements[i]->draw();
+				if (elementDisabled) {
+					DrawRectUI(settingsUIElements[i]->x, settingsUIElements[i]->y, settingsUIElements[i]->width, settingsUIElements[i]->height, Fade(LIGHTGRAY, 0.65f), UIAnchor::Center);
+					DrawTextUI("Max Threads: " + std::to_string(appSettings.maxThreadCount), settingsUIElements[i]->x, settingsUIElements[i]->y, 1, GRAY, UIAnchor::Center);
+				}
 
-				if (settingsUIElements[i]->active) {
+				if (settingsUIElements[i]->active && !elementDisabled) {
 					bool settingsChanged = false;
 					switch (settingsUIElements[i]->elementID) {
 					case 0:
@@ -429,18 +449,27 @@ int main() {
 						appSettings.soundVolume = newSoundVolume;
 						break;
 					}
+					case 202:
+					{
+						int newMaxThreadCount = std::stoi(settingsUIElements[i]->getContent());
+						settingsChanged = newMaxThreadCount != appSettings.maxThreadCount;
+						appSettings.maxThreadCount = newMaxThreadCount;
+						numberOfThreads = (unsigned int)appSettings.maxThreadCount;
+						break;
+					}
 					}
 					if (settingsChanged) {
 						SaveAppSettings();
 					}
 				}
 			}
-			
+
 			if (IsKeyPressed(KEY_B)) {
 				currentState = settingsReturnState;
 			}
 			break;
-		case STATE_CREATE:
+		}
+		case STATE_CREATE: {
 			ClearBackground(LightBlueWORLD);
 			DrawTextUI("Create WORLD", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
 
@@ -473,7 +502,7 @@ int main() {
 							PushNotice("Error: " + std::string(e.what()), 3.0f);
 							break;
 						}
-					
+
 						Color backgroundColor = ColorFromInt(bgColor);
 						Color groundColor = ColorFromInt(grColor);
 						std::string newWorldName = createMenuUIElements[0]->getContent();
@@ -505,7 +534,7 @@ int main() {
 						currentState = STATE_MENU_INIT;
 						break;
 					}
-					case 102: 
+					case 102:
 					{
 						// Input field for background color
 						std::string content = createMenuUIElements[i]->getContent();
@@ -529,7 +558,7 @@ int main() {
 					}
 					}
 				}
-				
+
 			}
 
 			// Draw preview world
@@ -540,6 +569,7 @@ int main() {
 				drawBusyPanel("Loading world...", 678);
 			}
 			break;
+		}
 		case STATE_GAME: {
 
 			ClearBackground(BeigeWORLD);
@@ -603,12 +633,10 @@ int main() {
 			for (int i = 0; i < ingameUIElements.size(); i++) {
 				ingameUIElements[i]->tick();
 				ingameUIElements[i]->draw();
-				if (ingameUIElements[i]->active && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
+				if (ingameUIElements[i]->active && !confirmLeaveWorld && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
 					switch (ingameUIElements[i]->elementID) {
 					case 0: // Main Menu
-						ClearNotices();
-						currentState = STATE_MENU_INIT;
-
+						confirmLeaveWorld = true;
 						break;
 					case 1: // Save
 						saveInProgress = true;
@@ -661,6 +689,7 @@ int main() {
 					case 7: // Options
 						settingsReturnState = STATE_GAME;
 						currentState = STATE_OPTIONS;
+						confirmLeaveWorld = false;
 						break;
 					case 200: // View Generation Slider
 						world->viewGeneration = std::stoi(ingameUIElements[i]->getContent());
@@ -708,6 +737,29 @@ int main() {
 
 			if (saveInProgress && saveWorkStarted.load()) {
 				drawBusyPanel("Saving world...", 678);
+			}
+
+			if (confirmLeaveWorld) {
+				DrawRectUI(absoluteWidth / 2, absoluteHeight / 2, 460, 220, Fade(WHITE, 0.96f), UIAnchor::Center);
+				DrawRectUI(absoluteWidth / 2, absoluteHeight / 2, 460, 220, BLACK, UIAnchor::Center, 2.0f);
+				DrawTextUI("Leave this world?", absoluteWidth / 2, absoluteHeight / 2 - 58, 1.4f, BLACK, UIAnchor::Center);
+				DrawTextUI("Unsaved progress will be lost.", absoluteWidth / 2, absoluteHeight / 2 - 18, 0.8f, DARKGRAY, UIAnchor::Center);
+
+				Button confirmLeaveButton(1000, absoluteWidth / 2 - 105, absoluteHeight / 2 + 58, 150, 56, "Leave");
+				Button cancelLeaveButton(1001, absoluteWidth / 2 + 105, absoluteHeight / 2 + 58, 150, 56, "Cancel");
+				confirmLeaveButton.draw();
+				cancelLeaveButton.draw();
+				confirmLeaveButton.tick();
+				cancelLeaveButton.tick();
+
+				if (confirmLeaveButton.active) {
+					confirmLeaveWorld = false;
+					ClearNotices();
+					currentState = STATE_MENU_INIT;
+				}
+				else if (cancelLeaveButton.active) {
+					confirmLeaveWorld = false;
+				}
 			}
 
 			break;

@@ -5,7 +5,7 @@
 void Slider::draw()
 {
 	drawRect = DrawRectUI(x, y, width, height, DARKGRAY, UIAnchor::Center);
-	DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 1);
+	DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2);
 
 	float sliderStart = drawRect.x + (NUB_WIDTH * UIScale()) * 0.5f;
 	float sliderEnd = drawRect.x + drawRect.width - (NUB_WIDTH * UIScale()) * 0.5f;

@@ -20,4 +20,6 @@
 
 29/06/2026:
 + Settings now get saved
++ Thread count to be used can now be changed
++ Added confirmation window when leaving world
 

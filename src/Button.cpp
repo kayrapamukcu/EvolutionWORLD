@@ -3,7 +3,7 @@
 void Button::draw()
 {
 	drawRect = DrawRectUI(x, y, width, height, LIGHTGRAY, UIAnchor::Center);
-	DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 1);
+	DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2);
 	DrawTextUI(name, x, y, 1, BLACK, UIAnchor::Center);
 }
 
