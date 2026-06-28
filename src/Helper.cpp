@@ -1,70 +1,77 @@
 #include "Helper.h"
 
+#include <algorithm>
+
 Font defaultFont;
 
-void DrawTextCentered(const std::string& text, int x, int y, int fontScale, Color color) {
-	
-	 Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale);
-	 DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio - textSize.x / 2, y * screenHeightRatio - textSize.y / 2 } , 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
-}
-
-void DrawTextCenteredHorizontal(const std::string& text, int x, int y, int fontScale, Color color) {
-
-	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale);
-	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio - textSize.x / 2, y - textSize.y / 2 }, 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
-}
-
-void DrawTextB(const std::string& text, int x, int y, int fontScale, Color color)
+Vector2 UIToScreen(float x, float y)
 {
-	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
+	return { x * screenWidthRatio, y * screenHeightRatio };
 }
 
-void DrawTextC(const std::string& text, int x, int y, int fontScale, Color color)
+float UIScale()
 {
-	DrawTextEx(defaultFont, text.c_str(), { x * screenWidthRatio, y * screenHeightRatio }, 0.5 * defaultFont.baseSize * fontScale * guiScale, 0.5 * fontScale * guiScale, color);
+	return guiScale;
 }
 
-void DrawTextCenteredNoScale(const std::string& text, int x, int y, int fontSize, Color color)
+float UIFontSize(float fontScale)
 {
-	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), 0.5 * defaultFont.baseSize * fontSize, 0.5 * fontSize);
-	DrawTextEx(defaultFont, text.c_str(), { x - textSize.x / 2, y - textSize.y / 2 }, 0.5 * defaultFont.baseSize * fontSize, 0.5 * fontSize, color);
+	return defaultFont.baseSize * fontScale * 0.5f * UIScale();
 }
 
-Rectangle DrawRectangleB(int x, int y, int w, int h, Color color)
+float UISpacing(float fontScale)
 {
-	auto width = w * guiScale;
-	auto height = h * guiScale;
-	DrawRectangle(x * screenWidthRatio, y * screenHeightRatio, width, height, color);
-	return { x * screenWidthRatio, y * screenHeightRatio, float(width), float(height) };
+	return fontScale * 0.5f * UIScale();
 }
 
-Rectangle DrawRectangleLinesB(int x, int y, int width, int height, int thickness, Color color)
+Vector2 MeasureUIText(const std::string& text, float fontScale)
 {
-	auto w = width * guiScale;
-	auto h = height * guiScale;
-	DrawRectangleLinesEx({ x * screenWidthRatio, y * screenHeightRatio, float(w), float(h) }, thickness * guiScale, color);
-	return { x * screenWidthRatio, y * screenHeightRatio, float(w), float(h) };
+	return MeasureTextEx(defaultFont, text.c_str(), UIFontSize(fontScale), UISpacing(fontScale));
 }
 
-Rectangle DrawRectangleCentered(int xCenter, int yCenter, int w, int h, Color color)
+void DrawTextUI(const std::string& text, float x, float y, float fontScale, Color color, UIAnchor anchor)
 {
-	auto width = w * guiScale;
-	auto height = h * guiScale;
-	DrawRectangle(xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, width, height, color);
-	return { xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) };
+	Vector2 position = UIToScreen(x, y);
+	const Vector2 textSize = MeasureUIText(text, fontScale);
+
+	if (anchor == UIAnchor::Center || anchor == UIAnchor::CenterHorizontal) {
+		position.x -= textSize.x * 0.5f;
+	}
+	if (anchor == UIAnchor::Center) {
+		position.y -= textSize.y * 0.5f;
+	}
+
+	DrawTextEx(defaultFont, text.c_str(), position, UIFontSize(fontScale), UISpacing(fontScale), color);
 }
 
-Rectangle DrawRectangleCenteredLines(int xCenter, int yCenter, int w, int h, int thickness, Color color)
+Rectangle DrawRectUI(float x, float y, float width, float height, Color color, UIAnchor anchor, float lineThickness)
 {
-	auto width = w * guiScale;
-	auto height = h * guiScale;
-	DrawRectangleLinesEx({ xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) }, thickness * guiScale, color);
-	return { xCenter * screenWidthRatio - width / 2, yCenter * screenHeightRatio - height / 2, float(width), float(height) };
+	Vector2 position = UIToScreen(x, y);
+	const float scaledWidth = width * screenWidthRatio;
+	const float scaledHeight = height * screenHeightRatio;
+
+	if (anchor == UIAnchor::Center) {
+		position.x -= scaledWidth * 0.5f;
+		position.y -= scaledHeight * 0.5f;
+	}
+	else if (anchor == UIAnchor::CenterHorizontal) {
+		position.x -= scaledWidth * 0.5f;
+	}
+
+	Rectangle rect = { position.x, position.y, scaledWidth, scaledHeight };
+	if (lineThickness > 0.0f) {
+		DrawRectangleLinesEx(rect, std::max(1.0f, lineThickness * UIScale()), color);
+	}
+	else {
+		DrawRectangleRec(rect, color);
+	}
+
+	return rect;
 }
 
-void DrawLineB(int x1, int y1, int x2, int y2, Color color)
+void DrawLineUI(float x1, float y1, float x2, float y2, Color color, float thickness)
 {
-	DrawLineEx({ x1 * screenWidthRatio, y1 * screenHeightRatio }, { x1 * screenWidthRatio + (x2 - x1) , y1 * screenHeightRatio + (y2 - y1) }, 1.0f * guiScale, color);
+	DrawLineEx(UIToScreen(x1, y1), UIToScreen(x2, y2), std::max(1.0f, thickness * UIScale()), color);
 }
 
 Color ColorFromInt(int color)

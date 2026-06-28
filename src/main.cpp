@@ -14,7 +14,7 @@
 #include <string>
 #include <format>
 
-int guiScalePrev = 2;
+float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
 const char* versionString = "v1.5.0dev";
 
@@ -39,9 +39,6 @@ void ClampWindowSize() {
 	screenWidth = GetScreenWidth();
 	screenHeight = GetScreenHeight();
 
-	screenWidthRatio = float(screenWidth) / float(absoluteWidth);
-	screenHeightRatio = float(screenHeight) / float(absoluteHeight);
-
 	bool needsResize = false;
 
 	if (screenWidth < minWidth) {
@@ -59,8 +56,11 @@ void ClampWindowSize() {
 		needsResize = true;
 	}
 
-	int guiScaleWidth = screenWidth / float(minWidth);
-	int guiScaleHeight = screenHeight / float(minHeight);
+	screenWidthRatio = float(screenWidth) / float(absoluteWidth);
+	screenHeightRatio = float(screenHeight) / float(absoluteHeight);
+
+	float guiScaleWidth = screenWidth / float(absoluteWidth);
+	float guiScaleHeight = screenHeight / float(absoluteHeight);
 
 	guiScale = std::min(guiScaleWidth, guiScaleHeight);
 
@@ -144,44 +144,44 @@ int main() {
 
 			mainMenuButtons.clear();
 
-			mainMenuButtons.push_back(Button(0, absoluteWidth / 2, absoluteHeight / 2 - 64, 120, 24, "Create WORLD"));
-			mainMenuButtons.push_back(Button(1, absoluteWidth / 2, absoluteHeight / 2 , 120, 24, "Load WORLD"));
-			mainMenuButtons.push_back(Button(2, absoluteWidth / 2, absoluteHeight / 2 + 64, 120, 24, "Settings"));
-			mainMenuButtons.push_back(Button(3, absoluteWidth / 2, absoluteHeight / 2 + 128, 120, 24, "About"));
-			mainMenuButtons.push_back(Button(4, absoluteWidth / 2, absoluteHeight / 2 + 192, 120, 24, "Exit"));
+			mainMenuButtons.push_back(Button(0, absoluteWidth / 2, 280, 240, 48, "Create WORLD"));
+			mainMenuButtons.push_back(Button(1, absoluteWidth / 2, 360, 240, 48, "Load WORLD"));
+			mainMenuButtons.push_back(Button(2, absoluteWidth / 2, 440, 240, 48, "Settings"));
+			mainMenuButtons.push_back(Button(3, absoluteWidth / 2, 520, 240, 48, "About"));
+			mainMenuButtons.push_back(Button(4, absoluteWidth / 2, 600, 240, 48, "Exit"));
 
 			// set up new game input fields and buttons
 
 			createMenuUIElements.clear();
 			
-			createMenuUIElements.push_back(std::make_unique<InputField>(100, 160, 112, 130, 20, "World Name"));
-			createMenuUIElements.push_back(std::make_unique<InputField>(101, 160, 192, 130, 20, "World Seed"));
-			createMenuUIElements.push_back(std::make_unique<InputField>(102, 90, 272, 60, 20, "BG Color", "6AB7F2", 6));
-			createMenuUIElements.push_back(std::make_unique<InputField>(103, 230, 272, 60, 20, "Grnd Color", "005E00", 6));
+			createMenuUIElements.push_back(std::make_unique<InputField>(100, 200, 220, 350, 48, "World Name"));
+			createMenuUIElements.push_back(std::make_unique<InputField>(101, 200, 320, 350, 48, "World Seed"));
+			createMenuUIElements.push_back(std::make_unique<InputField>(102, 100, 470, 150, 48, "BG Color", "6AB7F2", 6));
+			createMenuUIElements.push_back(std::make_unique<InputField>(103, 300, 470, 150, 48, "Grnd Color", "005E00", 6));
 			
-			createMenuUIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 450, 100, 25, "Create WORLD"));
-			createMenuUIElements.push_back(std::make_unique<Button>(1, 60, 450, 50, 25, "Back"));
+			createMenuUIElements.push_back(std::make_unique<Button>(0, absoluteWidth / 2, 680, 320, 64, "Create WORLD"));
+			createMenuUIElements.push_back(std::make_unique<Button>(1, 100, 680, 150, 64, "Back"));
 			
-			createMenuUIElements.push_back(std::make_unique<Slider>(200, absoluteWidth - 160, 112, 130, 20, "Creature Count", 100, 2500, numOfCreatures));
-			createMenuUIElements.push_back(std::make_unique<Slider>(202, absoluteWidth - 160, 172, 130, 20, "Seconds per Sim", 5, 30, secondsPerSimulation));
-			createMenuUIElements.push_back(std::make_unique<Slider>(203, absoluteWidth - 160, 232, 130, 20, "Mutability Range", 1, 200, 100));
-			createMenuUIElements.push_back(std::make_unique<Slider>(204, absoluteWidth - 160, 292, 130, 20, "Mutability Factor", 1, 500, 100));
-			createMenuUIElements.push_back(std::make_unique<Slider>(205, absoluteWidth - 160, 352, 130, 20, "Gravity", 20, 1000, gravityConst));
+			createMenuUIElements.push_back(std::make_unique<Slider>(200, 825, 180, 350, 48, "Creature Count", 100, 5000, numOfCreatures));
+			createMenuUIElements.push_back(std::make_unique<Slider>(202, 825, 260, 350, 48, "Seconds per Sim", 5, 30, secondsPerSimulation));
+			createMenuUIElements.push_back(std::make_unique<Slider>(203, 825, 340, 350, 48, "Mutability Range", 1, 200, 100));
+			createMenuUIElements.push_back(std::make_unique<Slider>(204, 825, 420, 350, 48, "Mutability Factor", 1, 500, 100));
+			createMenuUIElements.push_back(std::make_unique<Slider>(205, 825, 500, 350, 48, "Gravity", 20, 1000, gravityConst));
 
 			// ingame UI elements setup
 
 			ingameUIElements.clear();
 
-			ingameUIElements.push_back(std::make_unique<Button>(0, 144, absoluteHeight - 34, 120, 14, "Back"));
-			ingameUIElements.push_back(std::make_unique<Button>(1, 144, absoluteHeight - 66, 120, 14, "Save"));
-			ingameUIElements.push_back(std::make_unique<Button>(2, 427, absoluteHeight - 50, 120, 30, "Next Gen"));
-			ingameUIElements.push_back(std::make_unique<Button>(3, 710, absoluteHeight - 50, 120, 30, "Do Gens Cont."));
+			ingameUIElements.push_back(std::make_unique<Button>(0, 170, 720, 268, 34, "Back"));
+			ingameUIElements.push_back(std::make_unique<Button>(1, 170, 670, 268, 34, "Save"));
+			ingameUIElements.push_back(std::make_unique<Button>(2, 512, 700, 268, 60, "Next Gen"));
+			ingameUIElements.push_back(std::make_unique<Button>(3, 840, 700, 268, 60, "Do Gens Cont."));
+																			  
+			ingameUIElements.push_back(std::make_unique<Button>(4, 170, 590, 268, 60, "Watch Worst Crtr"));
+			ingameUIElements.push_back(std::make_unique<Button>(5, 512, 590, 268, 60, "Watch Avg Crtr"));
+			ingameUIElements.push_back(std::make_unique<Button>(6, 840, 590, 268, 60, "Watch Best Crtr"));
 
-			ingameUIElements.push_back(std::make_unique<Button>(4, 144, absoluteHeight - 120, 120, 30, "Watch Worst Crtr"));
-			ingameUIElements.push_back(std::make_unique<Button>(5, 427, absoluteHeight - 120, 120, 30, "Watch Avg Crtr"));
-			ingameUIElements.push_back(std::make_unique<Button>(6, 710, absoluteHeight - 120, 120, 30, "Watch Best Crtr"));
-
-			ingameUIElements.push_back(std::make_unique<Slider>(200, 204, 250, 180, 30, "View Generation", 0, 0, 0));
+			ingameUIElements.push_back(std::make_unique<Slider>(200, 300, 350, 528, 72, "View Generation", 0, 0, 0));
 
 
 			currentState = STATE_MENU;
@@ -189,7 +189,7 @@ int main() {
 		case STATE_MENU:
 			
 			ClearBackground( PinkWORLD );
-			DrawTextCentered("EvolutionWORLD " + std::string(versionString), absoluteWidth / 2, 32, 2, BLACK);	
+			DrawTextUI("EvolutionWORLD " + std::string(versionString), absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
 
 			for (int i = 0; i < mainMenuButtons.size(); i++) {
 
@@ -225,7 +225,7 @@ int main() {
 			break;
 		case STATE_OPTIONS:
 			ClearBackground(LightBlueWORLD);
-			DrawTextCentered("Options", absoluteWidth / 2, 32, 2, BLACK);
+			DrawTextUI("Options", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
 			
 			if (IsKeyPressed(KEY_B)) {
 				currentState = STATE_MENU;
@@ -233,7 +233,7 @@ int main() {
 			break;
 		case STATE_CREATE:
 			ClearBackground(LightBlueWORLD);
-			DrawTextCentered("Create WORLD", absoluteWidth / 2, 32, 2, BLACK);
+			DrawTextUI("Create WORLD", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
 
 			for (int i = 0; i < createMenuUIElements.size(); i++) {
 				createMenuUIElements[i]->tick();
@@ -316,19 +316,19 @@ int main() {
 			}
 
 			// Draw preview world
-			DrawTextCentered("Preview WORLD", absoluteWidth / 2, 100, 1, BLACK);
-			previewWorld.drawtick(absoluteWidth / 2, absoluteHeight / 2, 110, 110);
-			DrawRectangleCenteredLines(absoluteWidth / 2, absoluteHeight / 2, 110, 110, 2, BLACK);
+			DrawTextUI("Preview", absoluteWidth / 2, 240, 1.2f, BLACK, UIAnchor::Center);
+			previewWorld.drawtick(absoluteWidth / 2, 395, 240, 240);
+			DrawRectUI(absoluteWidth / 2, 395, 240, 240, BLACK, UIAnchor::Center, 2);
 			break;
 		case STATE_GAME:
 
 			ClearBackground(BeigeWORLD);
-			DrawTextB("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 24, 24, 1, BLACK);
+			DrawTextUI("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 36, 36, 1, BLACK);
 			
-			DrawTextB("Generation: " + std::to_string(world->generation), 24, 48, 2, BLACK);
-			DrawTextB(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->viewGeneration].fitness / 100), 24, 96, 1, BLACK);
-			DrawTextB(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->viewGeneration].fitness / 100), 24, 120, 1, BLACK);
-			DrawTextB(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->viewGeneration].fitness / 100), 24, 144, 1, BLACK);
+			DrawTextUI("Generation: " + std::to_string(world->generation), 36, 72, 2, BLACK);
+			DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 160, 1, BLACK);
+			DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 200, 1, BLACK);
+			DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 240, 1, BLACK);
 			
 			for (int i = 0; i < ingameUIElements.size(); i++) {
 				ingameUIElements[i]->tick();
@@ -338,6 +338,7 @@ int main() {
 					case 0: // Main Menu
 						notices.clear();
 						currentState = STATE_MENU_INIT;
+						
 						break;
 					case 1: // Save
 						world->Save();
@@ -346,7 +347,8 @@ int main() {
 						timeForOneGen = GetTime();
 						world->DoGeneration();
 						timeForOneGen = GetTime() - timeForOneGen;
-						std::cout << "Generation " << world->generation << " took " << timeForOneGen << " seconds." << std::endl;
+						std::cout << "Generation " << world->generation << " took " << timeForOneGen << " seconds.\n";
+						// awful hack
 						dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
 						dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
 						break;
@@ -398,33 +400,34 @@ int main() {
 			ClearBackground(world->backgroundColor);
 			auto creature = world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration);
 
-			DrawTextB(std::format("Watching creature #{:}",creature->id), 24, 24, 1, BLACK);
-			DrawTextB(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), 24, 48, 1, BLACK);
+			DrawTextUI(std::format("Watching creature #{:}",creature->id), 36, 36, 1, BLACK);
+			DrawTextUI(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), 36, 76, 1, BLACK);
 			if (watchTime > world->secondsPerSimulation) {
-				DrawTextB(std::format("Seconds: {:.2f}", watchTime), 24, 72, 1, RED);
+				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), 36, 116, 1, RED);
 			}
 			else {
-				DrawTextB(std::format("Seconds: {:.2f}", watchTime), 24, 72, 1, BLACK);
+				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), 36, 116, 1, BLACK);
 			}
 
 			watchTime += GetFrameTime();
 
+			// TODO : add a button instead, and add buttons for changing playback speed & pausing
 			if (IsKeyPressed(KEY_B)) {
 				watchTime = 0.0f;
 				creature->reset();
 				currentState = STATE_GAME;
 			}
 			
-			DrawTextB("Press B to go back!", 20, absoluteHeight - 32, 1, WHITE);
+			DrawTextUI("Press B to go back!", 36, absoluteHeight - 58, 1, WHITE);
 
 			break;
 		}
 
 		// Draw notices
 		for (auto it = notices.begin(); it != notices.end();) {
-			auto textLength = MeasureText(it->text.c_str(), guiScale*8);
-			DrawRectangleCentered(absoluteWidth / 2, absoluteHeight - 50, textLength, 20, Fade(WHITE, 0.9f));
-			DrawTextCentered(it->text, absoluteWidth / 2, absoluteHeight - 50, 1, RED);
+			auto textSize = MeasureUIText(it->text, 1);
+			DrawRectUI(absoluteWidth / 2, absoluteHeight - 80, textSize.x / UIScale() + 28, 44, Fade(WHITE, 0.9f), UIAnchor::Center);
+			DrawTextUI(it->text, absoluteWidth / 2, absoluteHeight - 80, 1, RED, UIAnchor::Center);
 			it->duration -= GetFrameTime();
 			if (it->duration <= 0) {
 				it = notices.erase(it);

@@ -88,13 +88,13 @@ namespace {
 }
 
 void World::Draw(int x, int y, int width, int height) {
-	DrawRectangleB(x, y, width, height, backgroundColor);
-	DrawRectangleB(x, y + height - 10, width, 10, groundColor);
+	DrawRectUI(x, y, width, height, backgroundColor);
+	DrawRectUI(x, y + height - 10, width, 10, groundColor);
 }
 
 void World::DrawCentered(int x, int y, int width, int height) {
-	DrawRectangleCentered(x, y, width, height, backgroundColor);
-    DrawRectangleCentered(x, y + (4 * height / 5 / screenHeightRatio) * (guiScale) / 2, width, height / 5, groundColor);
+	DrawRectUI(x, y, width, height, backgroundColor, UIAnchor::Center);
+    DrawRectUI(x, y + 2 * height / 5, width, height / 5, groundColor, UIAnchor::Center);
 }
 
 Creature* World::DrawWithCreatureCentered(int index, int generation) {
@@ -111,16 +111,23 @@ Creature* World::DrawWithCreatureCentered(int index, int generation) {
         creature = &bestGenerationalCreatures[generation];
         break;
     }
-    DrawRectangleB(0, (4 * screenHeight / 5 / screenHeightRatio), screenWidth, screenHeight / 5, groundColor);
+    DrawRectUI(0, 4 * absoluteHeight / 5, absoluteWidth, absoluteHeight / 5, groundColor);
 
-    camera.target = { (creature->getCenterX() - (screenWidth / 2) * 2.0f / guiScale) , ((float)-4 * screenHeight / 5) * 2.0f / guiScale + Creature::FLOOR_HEIGHT };
-    camera.zoom = 0.5f * guiScale;
+	const Vector2 groundScreen = UIToScreen(absoluteWidth / 2.0f, 4.0f * absoluteHeight / 5.0f);
+	camera.offset = groundScreen;
+    camera.target = { creature->getCenterX(), (float)Creature::FLOOR_HEIGHT };
+    camera.zoom = 1.0f * UIScale();
     BeginMode2D(camera);
     // draw rectangles 1 meter apart (100 pixels)
     auto atMeter = (int)creature->getCenterX() / 100;
-	for (int i = screenWidth / -100; i < screenWidth / 100; ++i) {
-        DrawRectangle(((int)creature->getCenterX() / 100) * 100 + i * 100, Creature::FLOOR_HEIGHT, 3, Creature::FLOOR_HEIGHT/2, WHITE);
-		DrawTextCenteredNoScale(std::to_string(i+atMeter), ((int)creature->getCenterX() / 100) * 100 + i * 100 + 2, 3*Creature::FLOOR_HEIGHT/2 + 10, 2, WHITE);
+	int meterRange = (int)(screenWidth / std::max(1.0f, camera.zoom) / 100.0f) + 2;
+	for (int i = -meterRange; i <= meterRange; ++i) {
+        DrawRectangle(((int)creature->getCenterX() / 100) * 100 + i * 100, Creature::FLOOR_HEIGHT, 3, Creature::FLOOR_HEIGHT/3, WHITE);
+		std::string meterLabel = std::to_string(i + atMeter);
+		const float labelFontSize = defaultFont.baseSize * 0.75f;
+		const float labelSpacing = 0.75f;
+		Vector2 labelSize = MeasureTextEx(defaultFont, meterLabel.c_str(), labelFontSize, labelSpacing);
+		DrawTextEx(defaultFont, meterLabel.c_str(), { ((int)creature->getCenterX() / 100) * 100 + i * 100 + 2 - labelSize.x * 0.5f, 3 * Creature::FLOOR_HEIGHT / 2 + 10 - labelSize.y * 0.5f }, labelFontSize, labelSpacing, WHITE);
 	}
     creature->draw();
     EndMode2D();

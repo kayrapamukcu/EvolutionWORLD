@@ -4,17 +4,23 @@
 
 void Slider::draw()
 {
-	drawRect = DrawRectangleCentered(x, y, width, height, DARKGRAY);
-	DrawRectangleCenteredLines(x, y, width, height, 1, BLACK);
+	drawRect = DrawRectUI(x, y, width, height, DARKGRAY, UIAnchor::Center);
+	DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 1);
 
-	float sliderStart = x * screenWidthRatio - width * guiScale / 2 + (NUB_WIDTH * guiScale) / 2;
-	float sliderEnd = x * screenWidthRatio + width * guiScale / 2 - (NUB_WIDTH * guiScale) / 2;
+	float sliderStart = drawRect.x + (NUB_WIDTH * UIScale()) * 0.5f;
+	float sliderEnd = drawRect.x + drawRect.width - (NUB_WIDTH * UIScale()) * 0.5f;
+	const int valueRange = std::max(1, maxVal - minVal);
 
-	sliderPos = sliderStart + static_cast<float>(curVal - minVal) / (maxVal - minVal) * (sliderEnd - sliderStart);
+	sliderPos = sliderStart + static_cast<float>(curVal - minVal) / valueRange * (sliderEnd - sliderStart);
 
-	DrawRectangle(sliderPos - NUB_WIDTH * guiScale / 2 + guiScale, y * screenHeightRatio - height * guiScale / 2 + guiScale, NUB_WIDTH * guiScale - 2*guiScale, height * guiScale - 2*guiScale, LIGHTGRAY);
+	DrawRectangle(
+		sliderPos - NUB_WIDTH * UIScale() * 0.5f + UIScale(),
+		drawRect.y + UIScale(),
+		NUB_WIDTH * UIScale() - 2 * UIScale(),
+		drawRect.height - 2 * UIScale(),
+		LIGHTGRAY);
 
-	DrawTextCentered(name + ": " + std::to_string(curVal), x, y, 1, WHITE);
+	DrawTextUI(name + ": " + std::to_string(curVal), x, y, 1, WHITE, UIAnchor::Center);
 }
 
 void Slider::tick()
@@ -39,15 +45,16 @@ void Slider::tick()
 		precise = false;
 	}
 	float mouseX = GetMousePosition().x;
-	float sliderStart = x * screenWidthRatio - width * guiScale / 2 + (NUB_WIDTH * guiScale) / 2;
-	float sliderEnd = x * screenWidthRatio + width * guiScale / 2 - (NUB_WIDTH * guiScale) / 2;
+	float sliderStart = drawRect.x + (NUB_WIDTH * UIScale()) * 0.5f;
+	float sliderEnd = drawRect.x + drawRect.width - (NUB_WIDTH * UIScale()) * 0.5f;
 	float xClicked = std::clamp(mouseX, sliderStart, sliderEnd);
+	const int valueRange = std::max(1, maxVal - minVal);
 	
 	if (precise) {
 		if (GetTime() - lastAdjustmentTime < 0.1) {
 			return;
 		}
-		float sliderPosClicked = sliderStart + static_cast<float>(minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * (maxVal - minVal)) - minVal) / (maxVal - minVal) * (sliderEnd - sliderStart);
+		float sliderPosClicked = sliderStart + static_cast<float>(minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * valueRange) - minVal) / valueRange * (sliderEnd - sliderStart);
 		if (sliderPos > sliderPosClicked) {
 			curVal = std::max(minVal, curVal - 1);
 		}
@@ -57,7 +64,8 @@ void Slider::tick()
 		lastAdjustmentTime = GetTime();
 	}
 	else if (active) {
-		curVal = minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * (maxVal - minVal));
+		curVal = minVal + static_cast<int>((xClicked - sliderStart) / (sliderEnd - sliderStart) * valueRange);
+		curVal = std::clamp(curVal, minVal, maxVal);
 	}
 }
 

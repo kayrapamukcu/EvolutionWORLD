@@ -2,9 +2,9 @@
 
 void Button::draw()
 {
-	drawRect = DrawRectangleCentered(x, y, width, height, LIGHTGRAY);
-	DrawRectangleCenteredLines(x, y, width, height, 1, BLACK);
-	DrawTextCentered(name, x, y , 1, BLACK);
+	drawRect = DrawRectUI(x, y, width, height, LIGHTGRAY, UIAnchor::Center);
+	DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 1);
+	DrawTextUI(name, x, y, 1, BLACK, UIAnchor::Center);
 }
 
 void Button::tick()

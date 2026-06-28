@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include "RNG.h"
 #include <array>
+#include <algorithm>
 #include <vector>
 #include "Creature.h"
 #include "PercentileGraph.h"
@@ -236,8 +237,8 @@ struct MiniWorld {
 	Creature creature = Creature();
 	Camera2D camera = { 0 };
 	inline void DrawCentered(int x, int y, int width, int height) const {
-		DrawRectangleCentered(x, y, width, height, backgroundColor);
-		DrawRectangleCentered(x, y + (4 * height / 5 / screenHeightRatio) * (guiScale) / 2, width, height / 5, groundColor);
+		DrawRectUI(x, y, width, height, backgroundColor, UIAnchor::Center);
+		DrawRectUI(x, y + 2 * height / 5, width, height / 5, groundColor, UIAnchor::Center);
 	}
 	inline MiniWorld() {
 		std::string creatureDataStr(reinterpret_cast<const char*>(creature_data), creature_data_len);
@@ -246,25 +247,30 @@ struct MiniWorld {
 		printCreature(creature);
 	}
 	inline void drawtick(int x, int y, int width, int height) {
-		float realWidth = width * guiScale;
-		float realHeight = height * guiScale;
-		float realX = x * screenWidthRatio - realWidth / 2.0f;
-		float realY = y * screenHeightRatio - realHeight / 2.0f;
+		Rectangle viewport = DrawRectUI(x, y, width, height, backgroundColor, UIAnchor::Center);
+		DrawRectangle(
+			(int)viewport.x,
+			(int)(viewport.y + 4.0f * viewport.height / 5.0f),
+			(int)viewport.width,
+			(int)(viewport.height / 5.0f),
+			groundColor);
 
-		DrawRectangle((int)realX, (int)realY, (int)realWidth, (int)realHeight, backgroundColor);
-		DrawRectangle((int)realX, (int)realY + (int)(4.0f * realHeight / 5.0f), (int)realWidth, (int)(realHeight - 4.0f * realHeight / 5.0f), groundColor);
+		BeginScissorMode((int)viewport.x, (int)viewport.y, (int)viewport.width, (int)viewport.height);
 
-		BeginScissorMode((int)realX, (int)realY, (int)realWidth, (int)realHeight);
-
-		camera.offset = { realX + realWidth / 2.0f, realY + 4.0f * realHeight / 5.0f };
+		camera.offset = { viewport.x + viewport.width / 2.0f, viewport.y + 4.0f * viewport.height / 5.0f };
 		camera.target = { creature.getCenterX(), (float)Creature::FLOOR_HEIGHT };
-		camera.zoom = 0.5f * guiScale;
+		camera.zoom = 1.0f * UIScale();
 		BeginMode2D(camera);
 		// draw rectangles 1 meter apart (100 pixels)
 		auto atMeter = (int)creature.getCenterX() / 100;
-		for (int i = screenWidth / -100; i < screenWidth / 100; ++i) {
-			DrawRectangle(((int)creature.getCenterX() / 100) * 100 + i * 100, Creature::FLOOR_HEIGHT, 3, Creature::FLOOR_HEIGHT / 2, WHITE);
-			DrawTextCenteredNoScale(std::to_string(i + atMeter), ((int)creature.getCenterX() / 100) * 100 + i * 100 + 2, 3 * Creature::FLOOR_HEIGHT / 2 + 10, 2, WHITE);
+		int meterRange = (int)(screenWidth / std::max(1.0f, camera.zoom) / 100.0f) + 2;
+		for (int i = -meterRange; i <= meterRange; ++i) {
+			DrawRectangle(((int)creature.getCenterX() / 100) * 100 + i * 100, Creature::FLOOR_HEIGHT, 3, Creature::FLOOR_HEIGHT / 3, WHITE);
+			std::string meterLabel = std::to_string(i + atMeter);
+			const float labelFontSize = defaultFont.baseSize * 0.75f;
+			const float labelSpacing = 0.75f;
+			Vector2 labelSize = MeasureTextEx(defaultFont, meterLabel.c_str(), labelFontSize, labelSpacing);
+			DrawTextEx(defaultFont, meterLabel.c_str(), { ((int)creature.getCenterX() / 100) * 100 + i * 100 + 2 - labelSize.x * 0.5f, 3 * Creature::FLOOR_HEIGHT / 2 + 10 - labelSize.y * 0.5f }, labelFontSize, labelSpacing, WHITE);
 		}
 		creature.draw();
 		EndMode2D();
@@ -288,7 +294,7 @@ public:
 	bool terminate = false;
 	int currentTicks = 0; // Shared with workers
 
-	PercentileGraph percentileGraph = PercentileGraph(520, 45, 300, 245);
+	PercentileGraph percentileGraph = PercentileGraph(610, 70, 360, 340);
 	inline static std::string worldName;
 	inline static uint32_t worldSeed;
 	inline static int ticksPerSecond = 100;
@@ -340,7 +346,6 @@ public:
 	{
 		worldName = n;
 		worldSeed = returnRandomWorldSeed(s); // Convert hex string to unsigned long long
-		ticksPerSecond = 100;
 		secondsPerSimulation = sps;
 		numOfCreatures = nc;
 		mutabilityRange = (float)mr / 100;

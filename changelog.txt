@@ -11,3 +11,7 @@
 + Saved worlds are now compressed
 * (Code) Switched to Raylib 6.0, which adds support for software rendering
 
+28/06/2026:
+
+* (Code) Changed UI rendering a lot, everything should scale much better than before
+

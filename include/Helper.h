@@ -20,11 +20,11 @@ inline unsigned int numberOfThreads = 1;
 
 inline constexpr int FRAMES_PER_SECOND = 60;
 
-inline constexpr int absoluteWidth = 854;
-inline constexpr int absoluteHeight = 480;
+inline constexpr int absoluteWidth = 1024;
+inline constexpr int absoluteHeight = 768;
 
-inline constexpr int minWidth = 800; // minimum window width
-inline constexpr int minHeight = 480; // minimum window height
+inline constexpr int minWidth = 960; // minimum window width
+inline constexpr int minHeight = 768; // minimum window height
 inline constexpr float minAspectRatio = 1.25f; // 5:4 aspect ratio
 
 inline int screenWidth = absoluteWidth;
@@ -47,26 +47,29 @@ extern Font defaultFont;
 
 inline bool inputActive = true;
 
-inline int guiScale = 1;
+inline float guiScale = 1.0f;
 inline bool justResized = false;
+
+enum class UIAnchor {
+	TopLeft,
+	Center,
+	CenterHorizontal
+};
 
 inline constexpr Color PinkWORLD = { 255 , 196 , 240 , 255 };
 inline constexpr Color LightBlueWORLD = { 173 , 216 , 230 , 255 };
 inline constexpr Color BeigeWORLD = { 240 , 188 , 120 , 255 };
 
-
 // helper functions
 
-void DrawTextCentered(const std::string& text, int x, int y, int fontSize, Color color);
-void DrawTextCenteredHorizontal(const std::string& text, int x, int y, int fontSize, Color color);
-void DrawTextB(const std::string& text, int x, int y, int fontSize, Color color);
-void DrawTextC(const std::string& text, int x, int y, int fontSize, Color color);
-void DrawTextCenteredNoScale(const std::string& text, int x, int y, int fontSize, Color color);
-Rectangle DrawRectangleB(int x, int y, int width, int height, Color color);
-Rectangle DrawRectangleLinesB(int x, int y, int width, int height, int thickness, Color color);
-Rectangle DrawRectangleCentered(int x, int y, int width, int height, Color color);
-Rectangle DrawRectangleCenteredLines(int x, int y, int width, int height, int thickness, Color color);
+Vector2 UIToScreen(float x, float y);
+float UIScale();
+float UIFontSize(float fontScale);
+float UISpacing(float fontScale);
+Vector2 MeasureUIText(const std::string& text, float fontScale);
 
-void DrawLineB(int x1, int y1, int x2, int y2, Color color);
+void DrawTextUI(const std::string& text, float x, float y, float fontScale, Color color, UIAnchor anchor = UIAnchor::TopLeft);
+Rectangle DrawRectUI(float x, float y, float width, float height, Color color, UIAnchor anchor = UIAnchor::TopLeft, float lineThickness = 0.0f);
+void DrawLineUI(float x1, float y1, float x2, float y2, Color color, float thickness = 1.0f);
 
 Color ColorFromInt(int hexColor);

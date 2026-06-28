@@ -32,16 +32,16 @@ namespace {
 void InputField::draw()
 {
 	if (active) {
-		DrawRectangleCentered(x, y, width, height, WHITE);
-		drawRect = DrawRectangleCenteredLines(x, y, width, height, 1, RED);
-		DrawTextCentered(text, x, y, 1, BLACK);
+		DrawRectUI(x, y, width, height, WHITE, UIAnchor::Center);
+		drawRect = DrawRectUI(x, y, width, height, RED, UIAnchor::Center, 1);
+		DrawTextUI(text, x, y, 1, BLACK, UIAnchor::Center);
 	}
 	else {
-		DrawRectangleCentered(x, y, width, height, WHITE);
-		drawRect = DrawRectangleCenteredLines(x, y, width, height, 1, BLACK);
-		DrawTextCentered(text, x, y, 1, DARKGRAY);
+		DrawRectUI(x, y, width, height, WHITE, UIAnchor::Center);
+		drawRect = DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 1);
+		DrawTextUI(text, x, y, 1, DARKGRAY, UIAnchor::Center);
 	}
-	DrawTextCenteredHorizontal(name, x, drawRect.y - 10 * guiScale, 1, BLACK);
+	DrawTextUI(name, x, y - height * 0.5f - 18, 1, BLACK, UIAnchor::Center);
 	
 }
 
