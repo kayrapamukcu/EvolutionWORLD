@@ -21,7 +21,7 @@
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v1.5.2";
+const char* versionString = "v1.6.0";
 
 constexpr int32_t settingsFileMagic = 0x53545745; // EWTS
 constexpr int32_t settingsFileVersion = 1;
@@ -167,7 +167,8 @@ enum State {
 	STATE_ABOUT,
 	STATE_CREATE,
 	STATE_GAME,
-	STATE_DRAW_CREATURE
+	STATE_DRAW_CREATURE,
+	STATE_VIEW_ALL
 };
 
 
@@ -215,6 +216,9 @@ int main() {
 	MiniWorld previewWorld;
 
 	int creatureIndexToBeDrawn = 0;
+	bool drawCreatureFromCurrentPopulation = false;
+	Creature selectedCurrentCreature;
+	int viewAllCreaturePage = 0;
 	bool confirmLeaveWorld = false;
 	float watchTime = 0.0f;
 	bool doGenerationsNonstop = false;
@@ -338,8 +342,9 @@ int main() {
 
 			ingameUIElements.push_back(std::make_unique<Button>(0, 175, 720, 310, 64, "Back"));
 			ingameUIElements.push_back(std::make_unique<Button>(1, 512, 720, 310, 64, "Save"));
-			ingameUIElements.push_back(std::make_unique<Button>(2, 257, 520, 474, 64, "Next Generation"));
-			ingameUIElements.push_back(std::make_unique<Button>(3, 768, 520, 474, 64, "Do Gens Continuously"));
+			
+			ingameUIElements.push_back(std::make_unique<Button>(2, 175, 520, 310, 64, "Next Generation"));
+			ingameUIElements.push_back(std::make_unique<Button>(3, 850, 520, 310, 64, "Do Gens Continuously"));
 																			  
 			ingameUIElements.push_back(std::make_unique<Button>(4, 175, 620, 310, 64, "Watch Worst Creature"));
 			ingameUIElements.push_back(std::make_unique<Button>(5, 512, 620, 310, 64, "Watch Avg Creature"));
@@ -347,6 +352,7 @@ int main() {
 
 			ingameUIElements.push_back(std::make_unique<Slider>(200, 300, 350, 528, 80, "View Generation", 0, 0, 0));
 			ingameUIElements.push_back(std::make_unique<Button>(7, 850, 720, 310, 64, "Settings"));
+			ingameUIElements.push_back(std::make_unique<Button>(8, 512, 520, 310, 64, "View All Creatures"));
 
 			settingsUIElements.clear();
 
@@ -630,10 +636,23 @@ int main() {
 				}
 			}
 
+			bool canViewAllCreatures = false;
+			{
+				std::lock_guard<std::mutex> dataLock(world->dataMutex);
+				canViewAllCreatures = world->viewGeneration == world->generation;
+			}
+
 			for (int i = 0; i < ingameUIElements.size(); i++) {
-				ingameUIElements[i]->tick();
+				bool elementDisabled = ingameUIElements[i]->elementID == 8 && !canViewAllCreatures;
+				if (!elementDisabled) {
+					ingameUIElements[i]->tick();
+				}
 				ingameUIElements[i]->draw();
-				if (ingameUIElements[i]->active && !confirmLeaveWorld && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
+				if (elementDisabled) {
+					DrawRectUI(ingameUIElements[i]->x, ingameUIElements[i]->y, ingameUIElements[i]->width, ingameUIElements[i]->height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
+					DrawTextUI(ingameUIElements[i]->name, ingameUIElements[i]->x, ingameUIElements[i]->y, 1, GRAY, UIAnchor::Center);
+				}
+				if (ingameUIElements[i]->active && !elementDisabled && !confirmLeaveWorld && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
 					switch (ingameUIElements[i]->elementID) {
 					case 0: // Main Menu
 						confirmLeaveWorld = true;
@@ -676,20 +695,27 @@ int main() {
 						break;
 					case 4: // See Worst Creature
 						creatureIndexToBeDrawn = 0;
+						drawCreatureFromCurrentPopulation = false;
 						currentState = STATE_DRAW_CREATURE;
 						break;
 					case 5: // See Average Creature
 						creatureIndexToBeDrawn = 1;
+						drawCreatureFromCurrentPopulation = false;
 						currentState = STATE_DRAW_CREATURE;
 						break;
 					case 6: // See Best Creature
 						creatureIndexToBeDrawn = 2;
+						drawCreatureFromCurrentPopulation = false;
 						currentState = STATE_DRAW_CREATURE;
 						break;
 					case 7: // Options
 						settingsReturnState = STATE_GAME;
 						currentState = STATE_OPTIONS;
 						confirmLeaveWorld = false;
+						break;
+					case 8: // View All Creatures
+						viewAllCreaturePage = 0;
+						currentState = STATE_VIEW_ALL;
 						break;
 					case 200: // View Generation Slider
 						world->viewGeneration = std::stoi(ingameUIElements[i]->getContent());
@@ -764,9 +790,132 @@ int main() {
 
 			break;
 		}
+		case STATE_VIEW_ALL: {
+			ClearBackground(BeigeWORLD);
+
+			constexpr int gridColumns = 40;
+			constexpr int gridRows = 25;
+			constexpr int creaturesPerPage = gridColumns * gridRows;
+			const int creatureCount = world->numOfCreatures;
+			const int pageCount = std::max(1, (creatureCount + creaturesPerPage - 1) / creaturesPerPage);
+			viewAllCreaturePage = std::clamp(viewAllCreaturePage, 0, pageCount - 1);
+			const int firstCreatureIndex = viewAllCreaturePage * creaturesPerPage;
+			const int creaturesOnPage = std::min(creaturesPerPage, creatureCount - firstCreatureIndex);
+
+			DrawTextUI("All Creatures of Generation #" + std::to_string(world->generation), absoluteWidth / 2, 36, 1.6f, BLACK, UIAnchor::Center);
+			DrawTextUI("Click on the rectangles to view the creatures!", absoluteWidth / 2, 80, 0.8f, DARKGRAY, UIAnchor::Center);
+
+			Button viewAllBackButton(1100, absoluteWidth / 2, 720, 260, 56, "Back");
+			Button previousPageButton(1101, absoluteWidth / 2 - 80, 652, 64, 52, "<");
+			Button nextPageButton(1102, absoluteWidth / 2 + 80, 652, 64, 52, ">");
+
+			bool canGoPrevious = pageCount > 1 && viewAllCreaturePage > 0;
+			bool canGoNext = pageCount > 1 && viewAllCreaturePage < pageCount - 1;
+			previousPageButton.draw();
+			nextPageButton.draw();
+			if (!canGoPrevious) {
+				DrawRectUI(previousPageButton.x, previousPageButton.y, previousPageButton.width, previousPageButton.height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
+				DrawTextUI("<", previousPageButton.x, previousPageButton.y, 1, GRAY, UIAnchor::Center);
+			}
+			if (!canGoNext) {
+				DrawRectUI(nextPageButton.x, nextPageButton.y, nextPageButton.width, nextPageButton.height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
+				DrawTextUI(">", nextPageButton.x, nextPageButton.y, 1, GRAY, UIAnchor::Center);
+			}
+			if (canGoPrevious) {
+				previousPageButton.tick();
+				if (previousPageButton.active) {
+					viewAllCreaturePage--;
+				}
+			}
+			if (canGoNext) {
+				nextPageButton.tick();
+				if (nextPageButton.active) {
+					viewAllCreaturePage++;
+				}
+			}
+			DrawTextUI(std::format("{} / {}", viewAllCreaturePage + 1, pageCount), absoluteWidth / 2, 652, 0.8f, DARKGRAY, UIAnchor::Center);
+
+			viewAllBackButton.draw();
+			viewAllBackButton.tick();
+			if (viewAllBackButton.active) {
+				currentState = STATE_GAME;
+			}
+
+			int hoveredCreatureIndex = -1;
+			{
+				std::lock_guard<std::mutex> dataLock(world->dataMutex);
+				std::vector<int> sortedCreatureIndices(creatureCount);
+				for (int i = 0; i < creatureCount; ++i) {
+					sortedCreatureIndices[i] = i;
+				}
+				std::sort(sortedCreatureIndices.begin(), sortedCreatureIndices.end(), [](int a, int b) {
+					return world->creatures[a].fitness > world->creatures[b].fitness;
+					});
+
+				const float gridX = 52.0f;
+				const float gridY = 108.0f;
+				const float cellWidth = 21.0f;
+				const float cellHeight = 18.0f;
+				const float cellGap = 2.0f;
+				const Vector2 mousePosition = GetMousePosition();
+
+				for (int i = 0; i < creaturesOnPage; ++i) {
+					const int column = i % gridColumns;
+					const int row = i / gridColumns;
+					const int creatureIndex = sortedCreatureIndices[firstCreatureIndex + i];
+					const float cellX = gridX + column * (cellWidth + cellGap);
+					const float cellY = gridY + row * (cellHeight + cellGap);
+
+					Rectangle cellRect = DrawGradientUI(cellX, cellY, cellWidth, cellHeight, LIME, GREEN);
+					DrawRectUI(cellX, cellY, cellWidth, cellHeight, BLACK, UIAnchor::TopLeft, 1.0f);
+
+					if (CheckCollisionPointRec(mousePosition, cellRect)) {
+						hoveredCreatureIndex = creatureIndex;
+						DrawRectUI(cellX, cellY, cellWidth, cellHeight, YELLOW, UIAnchor::TopLeft, 2.0f);
+					}
+				}
+
+				if (hoveredCreatureIndex >= 0 && hoveredCreatureIndex < creatureCount) {
+					if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+						selectedCurrentCreature = world->creatures[hoveredCreatureIndex];
+						selectedCurrentCreature.reset();
+						drawCreatureFromCurrentPopulation = true;
+						watchTime = 0.0f;
+						currentState = STATE_DRAW_CREATURE;
+					}
+
+					const Creature& creature = world->creatures[hoveredCreatureIndex];
+					std::string line1 = std::format("Creature #{}", creature.id);
+					std::string line2 = std::format("Fitness: {:.2f} meters", creature.fitness / 100.0f);
+					const float tooltipFontSize = UIFontSize(1.0f);
+					const float tooltipSpacing = UISpacing(1.0f);
+					Vector2 line1Size = MeasureTextEx(defaultFont, line1.c_str(), tooltipFontSize, tooltipSpacing);
+					Vector2 line2Size = MeasureTextEx(defaultFont, line2.c_str(), tooltipFontSize, tooltipSpacing);
+					float tooltipWidth = std::max(line1Size.x, line2Size.x) + 20.0f * UIScale();
+					float tooltipHeight = line1Size.y + line2Size.y + 20.0f * UIScale();
+					Vector2 tooltipPosition = { mousePosition.x + 16.0f * UIScale(), mousePosition.y + 16.0f * UIScale() };
+
+					if (tooltipPosition.x + tooltipWidth > GetScreenWidth()) {
+						tooltipPosition.x = mousePosition.x - tooltipWidth - 16.0f * UIScale();
+					}
+					if (tooltipPosition.y + tooltipHeight > GetScreenHeight()) {
+						tooltipPosition.y = mousePosition.y - tooltipHeight - 16.0f * UIScale();
+					}
+
+					DrawRectangle((int)tooltipPosition.x, (int)tooltipPosition.y, (int)tooltipWidth, (int)tooltipHeight, Fade(WHITE, 0.96f));
+					DrawRectangleLinesEx({ tooltipPosition.x, tooltipPosition.y, tooltipWidth, tooltipHeight }, std::max(1.0f, UIScale()), BLACK);
+					DrawTextEx(defaultFont, line1.c_str(), { tooltipPosition.x + (tooltipWidth - line1Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() }, tooltipFontSize, tooltipSpacing, BLACK);
+					DrawTextEx(defaultFont, line2.c_str(), { tooltipPosition.x + (tooltipWidth - line2Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() + line1Size.y }, tooltipFontSize, tooltipSpacing, BLACK);
+				}
+			}
+
+			break;
+		}
 		case STATE_DRAW_CREATURE:
 			ClearBackground(world->backgroundColor);
-			auto creature = world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration);
+			auto creature = drawCreatureFromCurrentPopulation
+				? world->DrawCreatureCentered(selectedCurrentCreature)
+				: world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration);
 
 			DrawTextUI(std::format("Watching creature #{:}",creature->id), 36, 36, 1, BLACK);
 			DrawTextUI(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), 36, 76, 1, BLACK);
@@ -785,7 +934,7 @@ int main() {
 			if (creatureBackButton.active) {
 				watchTime = 0.0f;
 				creature->reset();
-				currentState = STATE_GAME;
+				currentState = drawCreatureFromCurrentPopulation ? STATE_VIEW_ALL : STATE_GAME;
 			}
 
 			break;

@@ -417,6 +417,9 @@ public:
 	static bool Load();
 	static std::unique_ptr<World> LoadFromDialog(std::atomic<bool>* workStarted = nullptr);
 	Creature* DrawWithCreatureCentered(int index, int generation);
+	Creature* DrawCreatureCentered(Creature& creature);
+	Creature* DrawCurrentCreatureCentered(int index);
+	void PrepareNextGeneration();
 
 	inline void printCreature(const Creature& c) {
 		std::cout << "Creature ID: " << c.id << "\n";

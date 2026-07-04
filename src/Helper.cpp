@@ -69,6 +69,23 @@ Rectangle DrawRectUI(float x, float y, float width, float height, Color color, U
 	return rect;
 }
 
+Rectangle DrawGradientUI(float x, float y, float width, float height, Color color1, Color color2, UIAnchor anchor)
+{
+	Vector2 position = UIToScreen(x, y);
+	const float scaledWidth = width * screenWidthRatio;
+	const float scaledHeight = height * screenHeightRatio;
+	if (anchor == UIAnchor::Center) {
+		position.x -= scaledWidth * 0.5f;
+		position.y -= scaledHeight * 0.5f;
+	}
+	else if (anchor == UIAnchor::CenterHorizontal) {
+		position.x -= scaledWidth * 0.5f;
+	}
+	Rectangle rect = { position.x, position.y, scaledWidth, scaledHeight };
+	DrawRectangleGradientV((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color2, color1);
+	return rect;
+}
+
 void DrawLineUI(float x1, float y1, float x2, float y2, Color color, float thickness)
 {
 	DrawLineEx(UIToScreen(x1, y1), UIToScreen(x2, y2), std::max(1.0f, thickness * UIScale()), color);

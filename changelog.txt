@@ -23,3 +23,6 @@
 + Thread count to be used can now be changed
 + Added confirmation window when leaving world
 
+05/07/2026:
+
++ New view all creatures button!

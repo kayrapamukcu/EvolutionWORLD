@@ -140,6 +140,44 @@ Creature* World::DrawWithCreatureCentered(int index, int generation) {
 	return creature;
 }
 
+Creature* World::DrawCreatureCentered(Creature& creature) {
+    constexpr float groundTopRatio = 0.75f;
+    DrawRectUI(0, absoluteHeight * groundTopRatio, absoluteWidth, absoluteHeight * (1.0f - groundTopRatio), groundColor);
+
+    const Vector2 groundScreen = UIToScreen(absoluteWidth / 2.0f, absoluteHeight * groundTopRatio);
+    camera.offset = groundScreen;
+    camera.target = { creature.getCenterX(), (float)Creature::FLOOR_HEIGHT };
+    camera.zoom = 1.0f * UIScale();
+    BeginMode2D(camera);
+
+    auto atMeter = (int)creature.getCenterX() / 100;
+    int meterRange = (int)(screenWidth / std::max(1.0f, camera.zoom) / 100.0f) + 2;
+    for (int i = -meterRange; i <= meterRange; ++i) {
+        DrawRectangle(((int)creature.getCenterX() / 100) * 100 + i * 100, Creature::FLOOR_HEIGHT, 3, Creature::FLOOR_HEIGHT / 3, WHITE);
+        std::string meterLabel = std::to_string(i + atMeter);
+        const float labelFontSize = defaultFont.baseSize * 0.75f;
+        const float labelSpacing = 0.75f;
+        Vector2 labelSize = MeasureTextEx(defaultFont, meterLabel.c_str(), labelFontSize, labelSpacing);
+        DrawTextEx(defaultFont, meterLabel.c_str(), { ((int)creature.getCenterX() / 100) * 100 + i * 100 + 2 - labelSize.x * 0.5f, 3 * Creature::FLOOR_HEIGHT / 2 + 10 - labelSize.y * 0.5f }, labelFontSize, labelSpacing, WHITE);
+    }
+
+    creature.draw();
+    EndMode2D();
+    accumulatedTime += drawSpeedMult;
+    while (accumulatedTime > 1) {
+        creature.tick();
+        accumulatedTime--;
+    }
+    return &creature;
+}
+
+Creature* World::DrawCurrentCreatureCentered(int index) {
+    index = std::clamp(index, 0, numOfCreatures - 1);
+    Creature* creature = &creatures[index];
+    DrawCreatureCentered(*creature);
+    return creature;
+}
+
 void World::InitializeWorld() {
 	for (int i = 0; i < numOfCreatures; ++i) {
 		creatures[i].initialize();
@@ -439,6 +477,9 @@ bool World::StartGeneration()
         }
 
         std::lock_guard<std::mutex> dataLock(dataMutex);
+        if (generation >= 0) {
+            PrepareNextGeneration();
+        }
         generation++;
         currentTicks = ticksPerSecond * secondsPerSimulation;
         activeWorkers = (int)workers.size();
@@ -447,6 +488,19 @@ bool World::StartGeneration()
 
     workerStart.notify_all();
     return true;
+}
+
+void World::PrepareNextGeneration()
+{
+    for (int j = 0; j < numOfCreatures / 2; j++) {
+        float f = static_cast<float>(j) / numOfCreatures;
+        float rand = (std::pow(RNG::randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
+
+        int j2 = (f <= rand) ? j : numOfCreatures - 1 - j;
+
+        creatures[j2] = creatures[numOfCreatures - j2 - 1].reproduce();
+    }
+
 }
 
 bool World::FinishGenerationIfReady()
@@ -467,11 +521,9 @@ bool World::FinishGenerationIfReady()
 
 	    SendGenerationalDataToPercentileGraph();
 
-	    creatures[0].fitness = creatures[0].getCenterX();
-	    creatures[numOfCreatures / 2].fitness = creatures[numOfCreatures / 2].getCenterX();
-	    creatures[numOfCreatures - 1].fitness = creatures[numOfCreatures - 1].getCenterX();
-
-        // now fill up 
+        for (int i = 0; i < numOfCreatures; ++i) {
+            creatures[i].fitness = creatures[i].getCenterX();
+        }
 
         for (int i = 0; i < numOfCreatures; ++i) {
             creatures[numOfCreatures - 1 - i].reset();
@@ -480,15 +532,6 @@ bool World::FinishGenerationIfReady()
 	    worstGenerationalCreatures.push_back(creatures[0]);
 	    averageGenerationalCreatures.push_back(creatures[numOfCreatures / 2]);
 	    bestGenerationalCreatures.push_back(creatures[numOfCreatures - 1]);
-
-        for (int j = 0; j < numOfCreatures / 2; j++) {
-            float f = static_cast<float>(j) / numOfCreatures;
-            float rand = (std::pow(RNG::randomFloat(-numOfCreatures, numOfCreatures) / numOfCreatures, 3.0f) + 1.0f) / 2.0f;
-
-            int j2 = (f <= rand) ? j : numOfCreatures - 1 - j;
-
-            creatures[j2] = creatures[numOfCreatures-j2-1].reproduce();
-        }
 
         viewGeneration = generation;
     }
