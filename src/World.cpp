@@ -93,11 +93,6 @@ void World::Draw(int x, int y, int width, int height) {
 	DrawRectUI(x, y + height - 10, width, 10, groundColor);
 }
 
-void World::DrawCentered(int x, int y, int width, int height) {
-	DrawRectUI(x, y, width, height, backgroundColor, UIAnchor::Center);
-    DrawRectUI(x, y + 2 * height / 5, width, height / 5, groundColor, UIAnchor::Center);
-}
-
 int World::GetHistoryIndexForGeneration(int generation) const
 {
     if (storedHistoryGenerations.empty()) {
@@ -257,27 +252,27 @@ void World::StartWorkerThreads() {
 void World::SendGenerationalDataToPercentileGraph()
 {
     percentileGraph.storedGenerations.push_back(generation);
-	percentileGraph.data[0].push_back(creatures[0].getCenterX() / 100.0f); // worst creature
-	percentileGraph.data[1].push_back(creatures[(int)(0.01f * (numOfCreatures - 1))].getCenterX() / 100.0f);
-	percentileGraph.data[2].push_back(creatures[(int)(0.02f * (numOfCreatures - 1))].getCenterX() / 100.0f);
+	percentileGraph.data[0].push_back(creatures[0].fitness / 100.0f); // worst creature
+	percentileGraph.data[1].push_back(creatures[(int)(0.01f * (numOfCreatures - 1))].fitness / 100.0f);
+	percentileGraph.data[2].push_back(creatures[(int)(0.02f * (numOfCreatures - 1))].fitness / 100.0f);
 
 
-	percentileGraph.data[3].push_back(creatures[(int)(0.05f * (numOfCreatures - 1))].getCenterX() / 100.0f);
+	percentileGraph.data[3].push_back(creatures[(int)(0.05f * (numOfCreatures - 1))].fitness / 100.0f);
 
-	percentileGraph.data[4].push_back(creatures[(int)(0.10f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 10th percentile
+	percentileGraph.data[4].push_back(creatures[(int)(0.10f * (numOfCreatures - 1))].fitness / 100.0f); // 10th percentile
 
-	percentileGraph.data[5].push_back(creatures[(int)(0.20f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 20th percentile
-	percentileGraph.data[6].push_back(creatures[(int)(0.35f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 35th percentile
-	percentileGraph.data[7].push_back(creatures[(int)(0.50f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 50th percentile (median)
-	percentileGraph.data[8].push_back(creatures[(int)(0.65f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 65th percentile
-	percentileGraph.data[9].push_back(creatures[(int)(0.80f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 80th percentile
-	percentileGraph.data[10].push_back(creatures[(int)(0.90f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 90th percentile
+	percentileGraph.data[5].push_back(creatures[(int)(0.20f * (numOfCreatures - 1))].fitness / 100.0f); // 20th percentile
+	percentileGraph.data[6].push_back(creatures[(int)(0.35f * (numOfCreatures - 1))].fitness / 100.0f); // 35th percentile
+	percentileGraph.data[7].push_back(creatures[(int)(0.50f * (numOfCreatures - 1))].fitness / 100.0f); // 50th percentile (median)
+	percentileGraph.data[8].push_back(creatures[(int)(0.65f * (numOfCreatures - 1))].fitness / 100.0f); // 65th percentile
+	percentileGraph.data[9].push_back(creatures[(int)(0.80f * (numOfCreatures - 1))].fitness / 100.0f); // 80th percentile
+	percentileGraph.data[10].push_back(creatures[(int)(0.90f * (numOfCreatures - 1))].fitness / 100.0f); // 90th percentile
 
-	percentileGraph.data[11].push_back(creatures[(int)(0.95f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 95th percentile
+	percentileGraph.data[11].push_back(creatures[(int)(0.95f * (numOfCreatures - 1))].fitness / 100.0f); // 95th percentile
 
-	percentileGraph.data[12].push_back(creatures[(int)(0.98f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 98th percentile
-	percentileGraph.data[13].push_back(creatures[(int)(0.99f * (numOfCreatures - 1))].getCenterX() / 100.0f); // 99th percentile
-	percentileGraph.data[14].push_back(creatures[numOfCreatures - 1].getCenterX() / 100.0f); // best creature
+	percentileGraph.data[12].push_back(creatures[(int)(0.98f * (numOfCreatures - 1))].fitness / 100.0f); // 98th percentile
+	percentileGraph.data[13].push_back(creatures[(int)(0.99f * (numOfCreatures - 1))].fitness / 100.0f); // 99th percentile
+	percentileGraph.data[14].push_back(creatures[numOfCreatures - 1].fitness / 100.0f); // best creature
 
     percentileGraph.updateExtremeValues();
 }
@@ -699,8 +694,12 @@ bool World::FinishGenerationIfReady()
     {
         std::lock_guard<std::mutex> dataLock(dataMutex);
 
+        for (int i = 0; i < numOfCreatures; ++i) {
+            creatures[i].fitness = creatures[i].getCenterX() - creatures[i].getInitialCenterX();
+        }
+
         std::sort(&creatures[0], &creatures[0] + numOfCreatures, [](Creature& a, Creature& b) {
-            return a.getCenterX() < b.getCenterX();
+            return a.fitness < b.fitness;
             });
 
         if (worstGenerationalCreatures.empty()) {
@@ -711,10 +710,6 @@ bool World::FinishGenerationIfReady()
         }
 
 	    SendGenerationalDataToPercentileGraph();
-
-        for (int i = 0; i < numOfCreatures; ++i) {
-            creatures[i].fitness = creatures[i].getCenterX();
-        }
 
         for (int i = 0; i < numOfCreatures; ++i) {
             creatures[numOfCreatures - 1 - i].reset();

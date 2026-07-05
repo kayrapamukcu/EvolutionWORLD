@@ -9,7 +9,7 @@ void Button::draw()
 	}
 	else {
 		DrawRectUI(x, y, width, height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
-		DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2);
+		DrawRectUI(x, y, width, height, GRAY, UIAnchor::Center, 2);
 		DrawTextUI(name, x, y, 1, GRAY, UIAnchor::Center);
 	}
 }

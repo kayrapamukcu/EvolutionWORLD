@@ -93,6 +93,8 @@ float UISpacing(float fontScale);
 Vector2 MeasureUIText(const std::string& text, float fontScale);
 
 void DrawTextUI(const std::string& text, float x, float y, float fontScale, Color color, UIAnchor anchor = UIAnchor::TopLeft);
+void DrawGradientText(const std::string& text, Vector2 position, float fontSize, float spacing, Color color1, Color color2);
+void ClearGradientTextCache();
 Rectangle DrawRectUI(float x, float y, float width, float height, Color color, UIAnchor anchor = UIAnchor::TopLeft, float lineThickness = 0.0f);
 Rectangle DrawGradientUI(float x, float y, float width, float height, Color color1, Color color2, UIAnchor anchor = UIAnchor::TopLeft);
 void DrawLineUI(float x1, float y1, float x2, float y2, Color color, float thickness = 1.0f);

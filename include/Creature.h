@@ -13,7 +13,7 @@ struct Node {
 };
 struct Muscle {
 	uint8_t node1, node2;
-	uint16_t state1Ticks, state2Ticks;
+	uint8_t state1Ticks, state2Ticks;
 	bool currentMuscleStage;
 	uint8_t muscleTickCounter;
 	float length1, length2;
@@ -27,18 +27,21 @@ public:
 	static int FLOOR_HEIGHT;
 	int id;
 	float fitness = 0.0f;
-	uint8_t muscleCount = 3;
-	uint8_t nodeCount = 3;
-	uint16_t tickCounter = 0;
+	uint8_t muscleCount;
+	uint8_t nodeCount;
 	std::unique_ptr<Node[]> nodes;
 	std::unique_ptr<Muscle[]> muscles;
 
 	void reset();
 	void draw();
 	void initialize();
-	void initializeChild(Creature* parent); 
+	void initializeChild(Creature* parent);
+	bool hasConnection(int a, int b) const;
+
 	void tick();
-	const float getCenterX() const;
+	void normalizeForEvaluation();
+	float getCenterX() const;
+	float getInitialCenterX() const;
 	Creature reproduce();
 
 	Creature() = default;
@@ -50,9 +53,8 @@ public:
 
 		id = other.id;
 		fitness = other.fitness;
-		muscleCount = other.muscleCount;
 		nodeCount = other.nodeCount;
-		tickCounter = other.tickCounter;
+		muscleCount = other.muscleCount;
 
 		nodes = std::make_unique<Node[]>(nodeCount);
 		for (int i = 0; i < nodeCount; i++)

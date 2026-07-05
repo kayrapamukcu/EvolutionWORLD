@@ -22,11 +22,66 @@
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v1.7.0";
+const char* versionString = "v2.0.0dev";
 
 constexpr int32_t settingsFileMagic = 0x53545745; // EWTS
 constexpr int32_t settingsFileVersion = 1;
 constexpr int32_t settingsFieldCount = 5;
+
+std::unordered_map<uint64_t, std::pair<Color, Color>> speciesColorMap;
+
+enum State {
+	STATE_MENU_INIT,
+	STATE_MENU,
+	STATE_OPTIONS,
+	STATE_ABOUT,
+	STATE_CREATE,
+	STATE_GAME,
+	STATE_SAVE,
+	STATE_DRAW_CREATURE,
+	STATE_VIEW_ALL
+};
+
+uint64_t makeSpeciesKey(int nodeCount, int muscleCount)
+{
+	return (static_cast<uint64_t>(static_cast<uint32_t>(nodeCount)) << 32)
+		| static_cast<uint32_t>(muscleCount);
+}
+
+Color generateSpeciesColor(int nodeCount, int muscleCount)
+{
+	uint32_t hash = static_cast<uint32_t>(nodeCount) * 73856093u
+		^ static_cast<uint32_t>(muscleCount) * 19349663u;
+
+	hash ^= hash >> 16;
+	hash *= 0x7feb352du;
+	hash ^= hash >> 13;
+	hash *= 0x846ca68bu;
+	hash ^= hash >> 16;
+
+	uint8_t r = 60 + static_cast<uint8_t>(((hash >> 16) & 0xFF) * 195 / 255);
+	uint8_t g = 60 + static_cast<uint8_t>(((hash >> 8) & 0xFF) * 195 / 255);
+	uint8_t b = 60 + static_cast<uint8_t>((hash & 0xFF) * 195 / 255);
+
+	return Color{ r, g, b, 255 };
+}
+
+std::pair<Color,Color> getSpeciesColor(int nodeCount, int muscleCount)
+{
+	uint64_t key = makeSpeciesKey(nodeCount, muscleCount);
+
+	auto it = speciesColorMap.find(key);
+	if (it != speciesColorMap.end()) {
+		return it->second;
+	}
+
+	Color newColor = generateSpeciesColor(nodeCount, muscleCount);
+	Color newColor2 = generateSpeciesColor(nodeCount + 128, muscleCount + 256);
+	auto newColorPair = std::pair<Color, Color>(newColor, newColor2);
+	speciesColorMap.emplace(key, newColorPair);
+
+	return newColorPair;
+}
 
 void SaveAppSettings()
 {
@@ -150,9 +205,7 @@ void ClampWindowSize() {
 
 	guiScale = std::min(guiScaleWidth, guiScaleHeight);
 
-	if (guiScalePrev != guiScale) {
-		justResized = true;
-		std::cout << " New GUI scale!!!!!!!!!!!!!!!!\n";}
+	if (guiScalePrev != guiScale) justResized = true;
 	else justResized = false;
 
 	guiScalePrev = guiScale;
@@ -160,22 +213,8 @@ void ClampWindowSize() {
 		SetWindowSize(screenWidth, screenHeight);
 	}
 }
- 
-enum State {
-	STATE_MENU_INIT,
-	STATE_MENU,
-	STATE_OPTIONS,
-	STATE_ABOUT,
-	STATE_CREATE,
-	STATE_GAME,
-	STATE_SAVE,
-	STATE_DRAW_CREATURE,
-	STATE_VIEW_ALL
-};
-
 
 int main() {
-	
 	State currentState = STATE_MENU_INIT;
 	State settingsReturnState = STATE_MENU;
 	std::vector<Button> mainMenuButtons;
@@ -1012,6 +1051,7 @@ int main() {
 			viewAllBackButton.draw();
 			viewAllBackButton.tick();
 			if (viewAllBackButton.active) {
+				ClearGradientTextCache();
 				currentState = STATE_GAME;
 			}
 
@@ -1040,7 +1080,9 @@ int main() {
 					const float cellX = gridX + column * (cellWidth + cellGap);
 					const float cellY = gridY + row * (cellHeight + cellGap);
 
-					Rectangle cellRect = DrawGradientUI(cellX, cellY, cellWidth, cellHeight, LIME, GREEN);
+					auto colors = getSpeciesColor(world->creatures[creatureIndex].nodeCount, world->creatures[creatureIndex].muscleCount);
+
+					Rectangle cellRect = DrawGradientUI(cellX, cellY, cellWidth, cellHeight, colors.first, colors.second);
 					// DrawRectUI(cellX, cellY, cellWidth, cellHeight, BLACK, UIAnchor::TopLeft, 1.0f);
 
 					if (CheckCollisionPointRec(mousePosition, cellRect)) {
@@ -1060,13 +1102,19 @@ int main() {
 
 					const Creature& creature = world->creatures[hoveredCreatureIndex];
 					std::string line1 = std::format("Creature #{}", creature.id);
-					std::string line2 = std::format("Fitness: {:.2f} meters", creature.fitness / 100.0f);
+					std::string line2Prefix = "Species ";
+					std::string line2Species = std::format("N{}M{}", creature.nodeCount, creature.muscleCount);
+					std::string line2 = line2Prefix + line2Species;
+					std::string line3 = std::format("Fitness: {:.2f} meters", creature.fitness / 100.0f);
+					auto colors = getSpeciesColor(creature.nodeCount, creature.muscleCount);
 					const float tooltipFontSize = UIFontSize(1.0f);
 					const float tooltipSpacing = UISpacing(1.0f);
 					Vector2 line1Size = MeasureTextEx(defaultFont, line1.c_str(), tooltipFontSize, tooltipSpacing);
+					Vector2 line2PrefixSize = MeasureTextEx(defaultFont, line2Prefix.c_str(), tooltipFontSize, tooltipSpacing);
 					Vector2 line2Size = MeasureTextEx(defaultFont, line2.c_str(), tooltipFontSize, tooltipSpacing);
-					float tooltipWidth = std::max(line1Size.x, line2Size.x) + 20.0f * UIScale();
-					float tooltipHeight = line1Size.y + line2Size.y + 20.0f * UIScale();
+					Vector2 line3Size = MeasureTextEx(defaultFont, line3.c_str(), tooltipFontSize, tooltipSpacing);
+					float tooltipWidth = std::max({ line1Size.x, line2Size.x, line3Size.x }) + 20.0f * UIScale();
+					float tooltipHeight = line1Size.y + line2Size.y + line3Size.y + 20.0f * UIScale();
 					Vector2 tooltipPosition = { mousePosition.x + 16.0f * UIScale(), mousePosition.y + 16.0f * UIScale() };
 
 					if (tooltipPosition.x + tooltipWidth > GetScreenWidth()) {
@@ -1076,10 +1124,13 @@ int main() {
 						tooltipPosition.y = mousePosition.y - tooltipHeight - 16.0f * UIScale();
 					}
 
-					DrawRectangle((int)tooltipPosition.x, (int)tooltipPosition.y, (int)tooltipWidth, (int)tooltipHeight, Fade(WHITE, 0.96f));
-					DrawRectangleLinesEx({ tooltipPosition.x, tooltipPosition.y, tooltipWidth, tooltipHeight }, std::max(1.0f, UIScale()), BLACK);
-					DrawTextEx(defaultFont, line1.c_str(), { tooltipPosition.x + (tooltipWidth - line1Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() }, tooltipFontSize, tooltipSpacing, BLACK);
-					DrawTextEx(defaultFont, line2.c_str(), { tooltipPosition.x + (tooltipWidth - line2Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() + line1Size.y }, tooltipFontSize, tooltipSpacing, BLACK);
+					DrawRectangle((int)tooltipPosition.x, (int)tooltipPosition.y, (int)tooltipWidth, (int)tooltipHeight, Fade(BLACK, 0.96f));
+					DrawRectangleLinesEx({ tooltipPosition.x, tooltipPosition.y, tooltipWidth, tooltipHeight }, std::max(1.0f, UIScale()), WHITE);
+					DrawTextEx(defaultFont, line1.c_str(), { tooltipPosition.x + (tooltipWidth - line1Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() }, tooltipFontSize, tooltipSpacing, WHITE);
+					Vector2 line2Position = { tooltipPosition.x + (tooltipWidth - line2Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() + line1Size.y };
+					DrawTextEx(defaultFont, line2Prefix.c_str(), line2Position, tooltipFontSize, tooltipSpacing, WHITE);
+					DrawGradientText(line2Species, { line2Position.x + line2PrefixSize.x, line2Position.y }, tooltipFontSize, tooltipSpacing, colors.first, colors.second);
+					DrawTextEx(defaultFont, line3.c_str(), { tooltipPosition.x + (tooltipWidth - line3Size.x) * 0.5f, tooltipPosition.y + 8.0f * UIScale() + line1Size.y + line2Size.y }, tooltipFontSize, tooltipSpacing, WHITE);
 				}
 			}
 
@@ -1091,13 +1142,28 @@ int main() {
 				? world->DrawCreatureCentered(selectedCurrentCreature)
 				: world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration);
 
-			DrawTextUI(std::format("Watching creature #{:}",creature->id), 36, 36, 1, BLACK);
-			DrawTextUI(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), 36, 76, 1, BLACK);
+			DrawRectUI(absoluteWidth / 2, 16.0f, 800.0f, 180.0f, BLACK, UIAnchor::CenterHorizontal);
+			DrawRectUI(absoluteWidth / 2, 16.0f, 800.0f, 180.0f, WHITE, UIAnchor::CenterHorizontal, 3.0f);
+			{
+				std::string watchPrefix = std::format("Watching creature #{} of species ", creature->id);
+				std::string watchSpecies = std::format("N{}M{}", creature->nodeCount, creature->muscleCount);
+				auto watchSpeciesColors = getSpeciesColor(creature->nodeCount, creature->muscleCount);
+				const float watchFontSize = UIFontSize(1.0f);
+				const float watchSpacing = UISpacing(1.0f);
+				const Vector2 watchPrefixSize = MeasureTextEx(defaultFont, watchPrefix.c_str(), watchFontSize, watchSpacing);
+				const Vector2 watchSpeciesSize = MeasureTextEx(defaultFont, watchSpecies.c_str(), watchFontSize, watchSpacing);
+				Vector2 watchPosition = UIToScreen(absoluteWidth / 2, 48.0f);
+				watchPosition.x -= (watchPrefixSize.x + watchSpeciesSize.x) * 0.5f;
+
+				DrawTextEx(defaultFont, watchPrefix.c_str(), watchPosition, watchFontSize, watchSpacing, WHITE);
+				DrawGradientText(watchSpecies, { watchPosition.x + watchPrefixSize.x, watchPosition.y }, watchFontSize, watchSpacing, watchSpeciesColors.first, watchSpeciesColors.second);
+			}
+			DrawTextUI(std::format("Current X position: {:.2f} meters", creature->getCenterX()/100), absoluteWidth / 2, 88.0f, 1, WHITE, UIAnchor::CenterHorizontal);
 			if (watchTime > world->secondsPerSimulation) {
-				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), 36, 116, 1, RED);
+				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), absoluteWidth / 2, 128.0f, 1, RED, UIAnchor::CenterHorizontal);
 			}
 			else {
-				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), 36, 116, 1, BLACK);
+				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), absoluteWidth / 2, 128.0f, 1, WHITE, UIAnchor::CenterHorizontal);
 			}
 
 			watchTime += GetFrameTime();
@@ -1110,6 +1176,8 @@ int main() {
 				creature->reset();
 				currentState = drawCreatureFromCurrentPopulation ? STATE_VIEW_ALL : STATE_GAME;
 			}
+
+			if (IsKeyPressed(KEY_V)) world->printCreature(*creature);
 
 			break;
 		}
@@ -1133,6 +1201,8 @@ int main() {
 
 		EndDrawing();
 	}
+
+	ClearGradientTextCache();
 
 	stopContinuousGenerations.store(true);
 	if (continuousGenerationFuture.valid()) {

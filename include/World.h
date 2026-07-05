@@ -68,7 +68,7 @@ inline void writeCreature(std::ostream& out, const Creature& c) {
 	writeValue(out, c.fitness);
 	writeValue(out, c.muscleCount);
 	writeValue(out, c.nodeCount);
-	writeValue(out, c.tickCounter);
+	
 	for (int i = 0; i < c.nodeCount; ++i) {
 		const Node& n = c.nodes[i];
 		writeValue(out, n.initialX);
@@ -98,7 +98,7 @@ inline void readCreature(std::istream& in, Creature& c) {
 	readValue(in, c.fitness);
 	readValue(in, c.muscleCount);
 	readValue(in, c.nodeCount);
-	readValue(in, c.tickCounter);
+	
 	c.nodes = std::make_unique<Node[]>(c.nodeCount);
 	for (int i = 0; i < c.nodeCount; ++i) {
 		Node& n = c.nodes[i];
@@ -253,10 +253,6 @@ struct MiniWorld {
 
 	Creature creature = Creature();
 	Camera2D camera = { 0 };
-	inline void DrawCentered(int x, int y, int width, int height) const {
-		DrawRectUI(x, y, width, height, backgroundColor, UIAnchor::Center);
-		DrawRectUI(x, y + 2 * height / 5, width, height / 5, groundColor, UIAnchor::Center);
-	}
 	inline MiniWorld() {
 		std::string creatureDataStr(reinterpret_cast<const char*>(creature_data), creature_data_len);
 		std::istringstream in(creatureDataStr, std::ios::binary);
@@ -288,12 +284,12 @@ struct MiniWorld {
 			Vector2 labelSize = MeasureTextEx(defaultFont, meterLabel.c_str(), labelFontSize, labelSpacing);
 			DrawTextEx(defaultFont, meterLabel.c_str(), { ((int)creature.getCenterX() / 100) * 100 + i * 100 + 2 - labelSize.x * 0.5f, 3 * Creature::FLOOR_HEIGHT / 2 + 10 - labelSize.y * 0.5f }, labelFontSize, labelSpacing, WHITE);
 		}
-		creature.draw();
+		// creature.draw();
 		EndMode2D();
 		EndScissorMode();
 		accumulatedTime += 1.66f;
 		while (accumulatedTime > 1) {
-			creature.tick();
+			// creature.tick();
 			accumulatedTime--;
 		}
 	}
@@ -424,7 +420,6 @@ public:
 		}
 	}
 	void Draw(int x, int y, int width, int height);
-	void DrawCentered(int x, int y, int width, int height);
 	void DoGeneration();
 	bool StartGeneration();
 	bool FinishGenerationIfReady();
@@ -447,11 +442,11 @@ public:
 	bool HasHistoryDataInRange(int startGeneration, int endGeneration) const;
 
 	inline void printCreature(const Creature& c) {
-		std::cout << "Creature ID: " << c.id << "\n";
+		std::cout << "\nCreature ID: " << c.id << "\n";
 		std::cout << "Fitness: " << c.fitness << "\n";
-		std::cout << "Muscle Count: " << c.muscleCount << "\n";
-		std::cout << "Node Count: " << c.nodeCount << "\n";
-		std::cout << "Tick Counter: " << c.tickCounter << "\n";
+		std::cout << "Muscle Count: " << (int)c.muscleCount << "\n";
+		std::cout << "Node Count: " << (int)c.nodeCount << "\n";
+		
 		std::cout << "Nodes:\n";
 		for (int i = 0; i < c.nodeCount; ++i) {
 			const Node& n = c.nodes[i];
@@ -465,14 +460,13 @@ public:
 			const Muscle& m = c.muscles[i];
 			std::cout << "  Muscle " << i << ": node1=" << (int)m.node1
 				<< ", node2=" << (int)m.node2
-				<< ", state1Ticks=" << m.state1Ticks
-				<< ", state2Ticks=" << m.state2Ticks
+				<< ", state1Ticks=" << (int)m.state1Ticks
+				<< ", state2Ticks=" << (int)m.state2Ticks
 				<< ", currentMuscleStage=" << m.currentMuscleStage
 				<< ", muscleTickCounter=" << (int)m.muscleTickCounter
 				<< ", length1=" << m.length1
 				<< ", length2=" << m.length2
 				<< ", strength=" << m.strength << "\n";
 		}
-		std::cout << "gravity: " << World::gravity << "\n";
 	}
 };
