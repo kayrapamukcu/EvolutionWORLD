@@ -16,6 +16,32 @@ void PercentileGraph::draw() const
 	int dataSize = (int)data[0].size();
 	int dataPoints = std::min(dataSize, maxDataPoints);
 	if (dataPoints < 2) return;
+	auto generationAt = [&](int index) {
+		if ((int)storedGenerations.size() == dataSize) {
+			return storedGenerations[index];
+		}
+		return firstGeneration + index;
+		};
+	int viewDataIndex = 0;
+	if ((int)storedGenerations.size() == dataSize && !storedGenerations.empty()) {
+		auto it = std::lower_bound(storedGenerations.begin(), storedGenerations.end(), world->viewGeneration);
+		if (it == storedGenerations.end()) {
+			viewDataIndex = dataSize - 1;
+		}
+		else if (it == storedGenerations.begin()) {
+			viewDataIndex = 0;
+		}
+		else {
+			int rightIndex = (int)std::distance(storedGenerations.begin(), it);
+			int leftIndex = rightIndex - 1;
+			viewDataIndex = std::abs(storedGenerations[rightIndex] - world->viewGeneration) < std::abs(world->viewGeneration - storedGenerations[leftIndex])
+				? rightIndex
+				: leftIndex;
+		}
+	}
+	else {
+		viewDataIndex = std::clamp(world->viewGeneration - firstGeneration, 0, dataSize - 1);
+	}
 
 	float padding = std::max(1.0f, 2.0f * UIScale());
 	float plotLeft = graphRect.x + padding;
@@ -25,11 +51,11 @@ void PercentileGraph::draw() const
 	float yScale = plotHeight / (maxValue - minValue);
 	
 	int maxStartGen = std::max(0, dataSize - dataPoints);
-	int startGen = std::clamp(world->viewGeneration - dataPoints / 2, 0, maxStartGen);
+	int startGen = std::clamp(viewDataIndex - dataPoints / 2, 0, maxStartGen);
 	int endGen = startGen + dataPoints - 1;
 
-	std::string startLabel = std::format("{}", startGen);
-	std::string endLabel = std::format("{}", endGen);
+	std::string startLabel = std::format("{}", generationAt(startGen));
+	std::string endLabel = std::format("{}", generationAt(endGen));
 	
 	float labelFontSize = UIFontSize(0.5f);
 	float labelSpacing = UISpacing(0.5f);
@@ -98,7 +124,7 @@ void PercentileGraph::draw() const
 	}
 	DrawRectUI(x, y, width, height, BLACK, UIAnchor::TopLeft, 2);
 	int genRange = endGen - startGen;
-	int currentDrawGen = std::clamp(world->viewGeneration - startGen, 0, genRange);
+	int currentDrawGen = std::clamp(viewDataIndex - startGen, 0, genRange);
 
 	// Draw vertical green line at the position of currentDrawGen
 	float xLine = plotLeft + plotWidth * ((float)currentDrawGen / std::max(1, genRange));
@@ -138,14 +164,25 @@ void PercentileGraph::updateExtremeValues() // Only called when new data is adde
 
 void PercentileGraph::compressGraph()
 {
+	std::vector<int> compressedGenerations;
+	if (storedGenerations.size() > maxDataPoints) {
+		size_t stride = std::max<size_t>(1, storedGenerations.size() / maxDataPoints);
+		for (size_t i = 0; i < storedGenerations.size(); i += stride) {
+			compressedGenerations.push_back(storedGenerations[i]);
+		}
+	}
 	for (auto& vec : data) {
 		if (vec.size() > maxDataPoints) {
 			std::vector<float> compressed;
-			for (size_t i = 0; i < vec.size(); i += vec.size() / maxDataPoints) {
-				compressed.push_back((vec[i] + vec[i-1]) / 2);
+			size_t stride = std::max<size_t>(1, vec.size() / maxDataPoints);
+			for (size_t i = 0; i < vec.size(); i += stride) {
+				compressed.push_back(vec[i]);
 			}
 			vec = compressed;
 		}
+	}
+	if (!compressedGenerations.empty()) {
+		storedGenerations = compressedGenerations;
 	}
 	updateExtremeValues();
 }

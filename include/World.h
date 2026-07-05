@@ -1,4 +1,4 @@
-#include "Raylib.h"
+#include "raylib.h"
 #include <string>
 #include <stdexcept>
 #include "RNG.h"
@@ -16,9 +16,10 @@
 
 
 // 0 : v1.4.0
-// 1 : v1.4.1
 // 1 : v1.5.0 (but incompatible with older versions; compression added)
-constexpr uint64_t savefileVersion = 1;
+// 2 : v1.5.2+ history ranges and percentile graph generation offset
+// 3 : sparse saved history generation indices
+constexpr uint64_t savefileVersion = 3;
 
 // Helper functions for reading/writing binary data
 template <typename T>
@@ -161,8 +162,10 @@ inline void writePercentileGraph(std::ostream& out, const PercentileGraph& g) {
     }
 
     writeValue(out, g.backgroundColor);
+	writeValue(out, g.firstGeneration);
+	writeVector(out, g.storedGenerations);
 }
-inline void readPercentileGraph(std::istream& in, PercentileGraph& g) {
+inline void readPercentileGraph(std::istream& in, PercentileGraph& g, uint64_t fileVersion = savefileVersion) {
 	readValue(in, g.x);
 	readValue(in, g.y);
 	readValue(in, g.width);
@@ -181,6 +184,21 @@ inline void readPercentileGraph(std::istream& in, PercentileGraph& g) {
 	}
 
 	readValue(in, g.backgroundColor);
+	if (fileVersion >= 2) {
+		readValue(in, g.firstGeneration);
+	}
+	else {
+		g.firstGeneration = 0;
+	}
+	if (fileVersion >= 3) {
+		readVector(in, g.storedGenerations);
+	}
+	else {
+		g.storedGenerations.clear();
+		for (int i = 0; i < (int)g.data[0].size(); ++i) {
+			g.storedGenerations.push_back(g.firstGeneration + i);
+		}
+	}
 
 	g.world = nullptr;
 }
@@ -303,6 +321,8 @@ public:
 	inline static int gravity = 98;
 	int generation = -1; // Current generation of the world
 	int viewGeneration = 0;
+	int firstStoredGeneration = 0;
+	std::vector<int> storedHistoryGenerations;
 	inline static float mutabilityRange = 1.0f;
 	inline static float mutabilityFactor = 1.0f;
 	inline static float drawSpeedMult = 1.66f;
@@ -413,13 +433,18 @@ public:
 	void StartWorkerThreads();
 	void SendGenerationalDataToPercentileGraph();
 	void WorkerThread(int begin, int end);
-	void Save(std::atomic<bool>* workStarted = nullptr);
+	void Save(std::atomic<bool>* workStarted = nullptr, int saveStartGeneration = -1, int saveEndGeneration = -1, bool savePercentileGraph = true);
 	static bool Load();
 	static std::unique_ptr<World> LoadFromDialog(std::atomic<bool>* workStarted = nullptr);
 	Creature* DrawWithCreatureCentered(int index, int generation);
 	Creature* DrawCreatureCentered(Creature& creature);
 	Creature* DrawCurrentCreatureCentered(int index);
 	void PrepareNextGeneration();
+	int GetHistoryIndexForGeneration(int generation) const;
+	int GetFirstHistoryGeneration() const;
+	int GetLastHistoryGeneration() const;
+	bool HasHistoryDataForGeneration(int generation) const;
+	bool HasHistoryDataInRange(int startGeneration, int endGeneration) const;
 
 	inline void printCreature(const Creature& c) {
 		std::cout << "Creature ID: " << c.id << "\n";

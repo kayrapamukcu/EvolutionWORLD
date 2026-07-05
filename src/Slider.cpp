@@ -20,11 +20,23 @@ void Slider::draw()
 		drawRect.height - 2 * UIScale(),
 		LIGHTGRAY);
 
-	DrawTextUI(name + ": " + std::to_string(curVal), x, y, 1, WHITE, UIAnchor::Center);
+	if (enabled) {
+		DrawTextUI(name + ": " + std::to_string(curVal), x, y, 1, WHITE, UIAnchor::Center);
+	}
+	else {
+		DrawRectUI(x, y, width, height, Fade(LIGHTGRAY, 0.65f), UIAnchor::Center);
+		DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2);
+		DrawTextUI(name + ": " + std::to_string(curVal), x, y, 1, GRAY, UIAnchor::Center);
+	}
 }
 
 void Slider::tick()
 {
+	if (!enabled) {
+		active = false;
+		precise = false;
+		return;
+	}
 	if (CheckCollisionPointRec(GetMousePosition(), drawRect)) {
 		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
 			active = true;

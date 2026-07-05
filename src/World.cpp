@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstring>
 #include <limits>
+#include <utility>
 #include "miniz.h"
 #include "tinyfiledialogs.h"
 
@@ -97,18 +98,67 @@ void World::DrawCentered(int x, int y, int width, int height) {
     DrawRectUI(x, y + 2 * height / 5, width, height / 5, groundColor, UIAnchor::Center);
 }
 
+int World::GetHistoryIndexForGeneration(int generation) const
+{
+    if (storedHistoryGenerations.empty()) {
+        return 0;
+    }
+
+    auto it = std::lower_bound(storedHistoryGenerations.begin(), storedHistoryGenerations.end(), generation);
+    if (it == storedHistoryGenerations.end()) {
+        return (int)storedHistoryGenerations.size() - 1;
+    }
+    if (it == storedHistoryGenerations.begin()) {
+        return 0;
+    }
+    int rightIndex = (int)std::distance(storedHistoryGenerations.begin(), it);
+    int leftIndex = rightIndex - 1;
+    return std::abs(storedHistoryGenerations[rightIndex] - generation) < std::abs(generation - storedHistoryGenerations[leftIndex])
+        ? rightIndex
+        : leftIndex;
+}
+
+int World::GetFirstHistoryGeneration() const
+{
+    return storedHistoryGenerations.empty() ? firstStoredGeneration : storedHistoryGenerations.front();
+}
+
+int World::GetLastHistoryGeneration() const
+{
+    return storedHistoryGenerations.empty() ? firstStoredGeneration : storedHistoryGenerations.back();
+}
+
+bool World::HasHistoryDataForGeneration(int generation) const
+{
+    return std::binary_search(storedHistoryGenerations.begin(), storedHistoryGenerations.end(), generation);
+}
+
+bool World::HasHistoryDataInRange(int startGeneration, int endGeneration) const
+{
+    if (storedHistoryGenerations.empty() || endGeneration < startGeneration) {
+        return false;
+    }
+
+    auto it = std::lower_bound(storedHistoryGenerations.begin(), storedHistoryGenerations.end(), startGeneration);
+    return it != storedHistoryGenerations.end() && *it <= endGeneration;
+}
+
 Creature* World::DrawWithCreatureCentered(int index, int generation) {
     
-    Creature* creature;
+	Creature* creature;
+    int storedGenerationIndex = GetHistoryIndexForGeneration(generation);
     switch (index) {
     case 0:
-        creature = &worstGenerationalCreatures[generation];
+        creature = &worstGenerationalCreatures[storedGenerationIndex];
         break;
     case 1:
-        creature = &averageGenerationalCreatures[generation];
+        creature = &averageGenerationalCreatures[storedGenerationIndex];
         break;
     case 2:
-        creature = &bestGenerationalCreatures[generation];
+        creature = &bestGenerationalCreatures[storedGenerationIndex];
+        break;
+    default:
+        creature = &averageGenerationalCreatures[storedGenerationIndex];
         break;
     }
     constexpr float groundTopRatio = 0.75f;
@@ -206,6 +256,7 @@ void World::StartWorkerThreads() {
 
 void World::SendGenerationalDataToPercentileGraph()
 {
+    percentileGraph.storedGenerations.push_back(generation);
 	percentileGraph.data[0].push_back(creatures[0].getCenterX() / 100.0f); // worst creature
 	percentileGraph.data[1].push_back(creatures[(int)(0.01f * (numOfCreatures - 1))].getCenterX() / 100.0f);
 	percentileGraph.data[2].push_back(creatures[(int)(0.02f * (numOfCreatures - 1))].getCenterX() / 100.0f);
@@ -269,7 +320,99 @@ void World::WorkerThread(int begin, int end)
     }
 }
 
-void World::Save(std::atomic<bool>* workStarted)
+static std::vector<int> CreateContiguousGenerations(int firstGeneration, int count)
+{
+    std::vector<int> generations;
+    generations.reserve(std::max(0, count));
+    for (int i = 0; i < count; ++i) {
+        generations.push_back(firstGeneration + i);
+    }
+    return generations;
+}
+
+static std::pair<int, int> GetGenerationSliceIndices(const std::vector<int>& generations, int startGeneration, int endGeneration)
+{
+    if (generations.empty() || endGeneration < startGeneration) {
+        return { 0, -1 };
+    }
+
+    auto firstIt = std::lower_bound(generations.begin(), generations.end(), startGeneration);
+    auto lastIt = std::upper_bound(generations.begin(), generations.end(), endGeneration);
+    if (firstIt == generations.end() || firstIt == lastIt) {
+        return { 0, -1 };
+    }
+
+    int firstIndex = (int)std::distance(generations.begin(), firstIt);
+    int lastIndex = (int)std::distance(generations.begin(), lastIt) - 1;
+    return { firstIndex, lastIndex };
+}
+
+static std::vector<int> SliceGenerationHistory(const std::vector<int>& source, int startGeneration, int endGeneration)
+{
+    auto [firstIndex, lastIndex] = GetGenerationSliceIndices(source, startGeneration, endGeneration);
+    if (lastIndex < firstIndex) {
+        return {};
+    }
+    return std::vector<int>(source.begin() + firstIndex, source.begin() + lastIndex + 1);
+}
+
+static std::vector<Creature> SliceCreatureHistory(const std::vector<Creature>& source, const std::vector<int>& generations, int startGeneration, int endGeneration)
+{
+    std::vector<Creature> result;
+    if (source.empty() || source.size() != generations.size()) {
+        return result;
+    }
+
+    auto [firstIndex, lastIndex] = GetGenerationSliceIndices(generations, startGeneration, endGeneration);
+    if (lastIndex < firstIndex) {
+        return result;
+    }
+
+    result.assign(source.begin() + firstIndex, source.begin() + lastIndex + 1);
+    return result;
+}
+
+static PercentileGraph SlicePercentileGraph(const PercentileGraph& source, int startGeneration, int endGeneration, bool includeGraph)
+{
+    PercentileGraph result = source;
+    for (auto& vec : result.data) {
+        vec.clear();
+    }
+    result.storedGenerations.clear();
+    result.firstGeneration = startGeneration;
+    result.minValue = -1.0f;
+    result.maxValue = 1.0f;
+
+    if (!includeGraph || source.data[0].empty() || source.storedGenerations.size() != source.data[0].size()) {
+        return result;
+    }
+
+    auto [firstIndex, lastIndex] = GetGenerationSliceIndices(source.storedGenerations, startGeneration, endGeneration);
+    if (lastIndex < firstIndex) {
+        return result;
+    }
+
+    result.storedGenerations.assign(source.storedGenerations.begin() + firstIndex, source.storedGenerations.begin() + lastIndex + 1);
+    result.firstGeneration = result.storedGenerations.empty() ? startGeneration : result.storedGenerations.front();
+    for (int i = 0; i < result.data.size(); ++i) {
+        result.data[i].assign(source.data[i].begin() + firstIndex, source.data[i].begin() + lastIndex + 1);
+    }
+    for (const auto& vec : result.data) {
+        for (float value : vec) {
+            result.minValue = std::min(result.minValue, value);
+            result.maxValue = std::max(result.maxValue, value);
+        }
+    }
+    result.minValue *= 1.05f;
+    result.maxValue *= 1.05f;
+    if (result.minValue == result.maxValue) {
+        result.minValue -= 1.0f;
+        result.maxValue += 1.0f;
+    }
+    return result;
+}
+
+void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int saveEndGeneration, bool savePercentileGraph)
 {
     // new file
     const char* filters[] = { "*.WORLD" };
@@ -302,6 +445,11 @@ void World::Save(std::atomic<bool>* workStarted)
     Color backgroundColorSnapshot;
     Color groundColorSnapshot;
     int generationSnapshot;
+    int firstStoredGenerationSnapshot;
+    int historyStartGenerationSnapshot;
+    int historyEndGenerationSnapshot;
+    std::vector<int> storedHistoryGenerationsSnapshot;
+    std::vector<int> savedHistoryGenerationsSnapshot;
     std::vector<Creature> creaturesSnapshot;
     std::vector<Creature> worstGenerationalCreaturesSnapshot;
     std::vector<Creature> averageGenerationalCreaturesSnapshot;
@@ -321,11 +469,26 @@ void World::Save(std::atomic<bool>* workStarted)
         backgroundColorSnapshot = backgroundColor;
         groundColorSnapshot = groundColor;
         generationSnapshot = generation;
+        firstStoredGenerationSnapshot = firstStoredGeneration;
+        if (storedHistoryGenerations.size() != worstGenerationalCreatures.size()) {
+            storedHistoryGenerations = CreateContiguousGenerations(firstStoredGeneration, (int)worstGenerationalCreatures.size());
+        }
+        storedHistoryGenerationsSnapshot = storedHistoryGenerations;
+        int lastStoredGenerationSnapshot = storedHistoryGenerationsSnapshot.empty() ? firstStoredGenerationSnapshot : storedHistoryGenerationsSnapshot.back();
+        int firstStoredGenerationInHistorySnapshot = storedHistoryGenerationsSnapshot.empty() ? firstStoredGenerationSnapshot : storedHistoryGenerationsSnapshot.front();
+        historyStartGenerationSnapshot = saveStartGeneration < 0 ? firstStoredGenerationSnapshot : saveStartGeneration;
+        historyEndGenerationSnapshot = saveEndGeneration < 0 ? lastStoredGenerationSnapshot : saveEndGeneration;
+        historyStartGenerationSnapshot = std::clamp(historyStartGenerationSnapshot, firstStoredGenerationInHistorySnapshot, lastStoredGenerationSnapshot);
+        historyEndGenerationSnapshot = std::clamp(historyEndGenerationSnapshot, historyStartGenerationSnapshot, lastStoredGenerationSnapshot);
+        savedHistoryGenerationsSnapshot = SliceGenerationHistory(storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
+        if (!savedHistoryGenerationsSnapshot.empty()) {
+            historyStartGenerationSnapshot = savedHistoryGenerationsSnapshot.front();
+        }
         creaturesSnapshot.assign(creatures.get(), creatures.get() + numOfCreatures);
-        worstGenerationalCreaturesSnapshot = worstGenerationalCreatures;
-        averageGenerationalCreaturesSnapshot = averageGenerationalCreatures;
-        bestGenerationalCreaturesSnapshot = bestGenerationalCreatures;
-        percentileGraphSnapshot = percentileGraph;
+        worstGenerationalCreaturesSnapshot = SliceCreatureHistory(worstGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
+        averageGenerationalCreaturesSnapshot = SliceCreatureHistory(averageGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
+        bestGenerationalCreaturesSnapshot = SliceCreatureHistory(bestGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
+        percentileGraphSnapshot = SlicePercentileGraph(percentileGraph, historyStartGenerationSnapshot, historyEndGenerationSnapshot, savePercentileGraph);
     }
 
     try {
@@ -343,6 +506,8 @@ void World::Save(std::atomic<bool>* workStarted)
         writeValue(serialized, backgroundColorSnapshot);
         writeValue(serialized, groundColorSnapshot);
 	    writeValue(serialized, generationSnapshot);
+        writeValue(serialized, historyStartGenerationSnapshot);
+        writeVector(serialized, savedHistoryGenerationsSnapshot);
         writeCreatureVector(serialized, creaturesSnapshot);
         writeCreatureVector(serialized, worstGenerationalCreaturesSnapshot);
         writeCreatureVector(serialized, averageGenerationalCreaturesSnapshot);
@@ -412,9 +577,9 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readString(dataIn, worldName);
         readValue(dataIn, worldSeed);
 		std::cout << "Loading world: " << worldName << " with seed " << worldSeed << std::endl;
-        if (fileVersion != savefileVersion) {
+        if (fileVersion < 1 || fileVersion > savefileVersion) {
             std::cerr << "Unsupported savefile version: " << fileVersion << std::endl;
-            PushNotice("Expected savefile version " + std::to_string(savefileVersion) + ", got " + std::to_string(fileVersion), 5.0f);
+            PushNotice("Unsupported savefile version " + std::to_string(fileVersion), 5.0f);
             return nullptr;
         }
 
@@ -430,8 +595,16 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readValue(dataIn, loadedWorld->backgroundColor);
         readValue(dataIn, loadedWorld->groundColor);
         readValue(dataIn, loadedWorld->generation);
+        if (fileVersion >= 2) {
+            readValue(dataIn, loadedWorld->firstStoredGeneration);
+        }
+        else {
+            loadedWorld->firstStoredGeneration = 0;
+        }
+        if (fileVersion >= 3) {
+            readVector(dataIn, loadedWorld->storedHistoryGenerations);
+        }
         
-        loadedWorld->viewGeneration = loadedWorld->generation;
         loadedWorld->creatures = std::make_unique<Creature[]>(loadedWorld->numOfCreatures);
         std::vector<Creature> vec;
         readCreatureVector(dataIn, vec);
@@ -441,7 +614,18 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readCreatureVector(dataIn, loadedWorld->worstGenerationalCreatures);
         readCreatureVector(dataIn, loadedWorld->averageGenerationalCreatures);
         readCreatureVector(dataIn, loadedWorld->bestGenerationalCreatures);
-        readPercentileGraph(dataIn, loadedWorld->percentileGraph);
+        if (fileVersion < 3 || loadedWorld->storedHistoryGenerations.size() != loadedWorld->worstGenerationalCreatures.size()) {
+            loadedWorld->storedHistoryGenerations = CreateContiguousGenerations(loadedWorld->firstStoredGeneration, (int)loadedWorld->worstGenerationalCreatures.size());
+        }
+        if (!loadedWorld->storedHistoryGenerations.empty()) {
+            loadedWorld->firstStoredGeneration = loadedWorld->storedHistoryGenerations.front();
+        }
+        readPercentileGraph(dataIn, loadedWorld->percentileGraph, fileVersion);
+        loadedWorld->viewGeneration = std::clamp(
+            loadedWorld->generation,
+            loadedWorld->GetFirstHistoryGeneration(),
+            loadedWorld->GetLastHistoryGeneration()
+        );
         loadedWorld->percentileGraph.world = loadedWorld.get();
         loadedWorld->StartWorkerThreads();
         in.close();
@@ -519,6 +703,13 @@ bool World::FinishGenerationIfReady()
             return a.getCenterX() < b.getCenterX();
             });
 
+        if (worstGenerationalCreatures.empty()) {
+            firstStoredGeneration = generation;
+            percentileGraph.firstGeneration = generation;
+            percentileGraph.minValue = -1.0f;
+            percentileGraph.maxValue = 1.0f;
+        }
+
 	    SendGenerationalDataToPercentileGraph();
 
         for (int i = 0; i < numOfCreatures; ++i) {
@@ -532,6 +723,7 @@ bool World::FinishGenerationIfReady()
 	    worstGenerationalCreatures.push_back(creatures[0]);
 	    averageGenerationalCreatures.push_back(creatures[numOfCreatures / 2]);
 	    bestGenerationalCreatures.push_back(creatures[numOfCreatures - 1]);
+        storedHistoryGenerations.push_back(generation);
 
         viewGeneration = generation;
     }

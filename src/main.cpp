@@ -1,6 +1,6 @@
 #include <iostream>
 #include "Creature.h"
-#include "Raylib.h"
+#include "raylib.h"
 #include "Helper.h"
 #include <array>
 #include <algorithm>
@@ -18,10 +18,11 @@
 #include <future>
 #include <fstream>
 #include <cstdint>
+#include <cmath>
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v1.6.0";
+const char* versionString = "v1.7.0";
 
 constexpr int32_t settingsFileMagic = 0x53545745; // EWTS
 constexpr int32_t settingsFileVersion = 1;
@@ -167,6 +168,7 @@ enum State {
 	STATE_ABOUT,
 	STATE_CREATE,
 	STATE_GAME,
+	STATE_SAVE,
 	STATE_DRAW_CREATURE,
 	STATE_VIEW_ALL
 };
@@ -219,6 +221,10 @@ int main() {
 	bool drawCreatureFromCurrentPopulation = false;
 	Creature selectedCurrentCreature;
 	int viewAllCreaturePage = 0;
+	int saveStartGeneration = 0;
+	int saveEndGeneration = 0;
+	int activeSaveRangeHandle = -1;
+	bool saveIncludeGraph = true;
 	bool confirmLeaveWorld = false;
 	float watchTime = 0.0f;
 	bool doGenerationsNonstop = false;
@@ -285,8 +291,9 @@ int main() {
 				world = std::move(loadedWorld);
 				StopMusicStream(musicMenu);
 				currentState = STATE_GAME;
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->minVal = world->GetFirstHistoryGeneration();
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->GetLastHistoryGeneration();
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->viewGeneration;
 				PushNotice("World loaded: " + world->worldName, 2.0f);
 			}
 		}
@@ -298,8 +305,9 @@ int main() {
 				world = std::move(createdWorld);
 				StopMusicStream(musicMenu);
 				currentState = STATE_GAME;
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->generation;
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->generation;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->minVal = world->GetFirstHistoryGeneration();
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = world->GetLastHistoryGeneration();
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = world->viewGeneration;
 			}
 		}
 		
@@ -416,17 +424,11 @@ int main() {
 			bool maxThreadsSliderEnabled = settingsReturnState != STATE_GAME && hardwareThreadCount > 1;
 
 			for (int i = 0; i < settingsUIElements.size(); i++) {
-				bool elementDisabled = settingsUIElements[i]->elementID == 202 && !maxThreadsSliderEnabled;
-				if (!elementDisabled) {
-					settingsUIElements[i]->tick();
-				}
+				settingsUIElements[i]->enabled = !(settingsUIElements[i]->elementID == 202 && !maxThreadsSliderEnabled);
+				settingsUIElements[i]->tick();
 				settingsUIElements[i]->draw();
-				if (elementDisabled) {
-					DrawRectUI(settingsUIElements[i]->x, settingsUIElements[i]->y, settingsUIElements[i]->width, settingsUIElements[i]->height, Fade(LIGHTGRAY, 0.65f), UIAnchor::Center);
-					DrawTextUI("Max Threads: " + std::to_string(appSettings.maxThreadCount), settingsUIElements[i]->x, settingsUIElements[i]->y, 1, GRAY, UIAnchor::Center);
-				}
 
-				if (settingsUIElements[i]->active && !elementDisabled) {
+				if (settingsUIElements[i]->active) {
 					bool settingsChanged = false;
 					switch (settingsUIElements[i]->elementID) {
 					case 0:
@@ -537,6 +539,8 @@ int main() {
 					}
 					case 1: // Back
 					{
+						previewWorld.backgroundColor = ColorFromInt(0x6AB7F2);
+						previewWorld.groundColor = ColorFromInt(0x005E00);
 						currentState = STATE_MENU_INIT;
 						break;
 					}
@@ -576,6 +580,172 @@ int main() {
 			}
 			break;
 		}
+		case STATE_SAVE: {
+			ClearBackground(BeigeWORLD);
+
+			std::string worldNameSnapshot;
+			uint32_t worldSeedSnapshot = 0;
+			int numCreaturesSnapshot = 0;
+			int secondsPerSimulationSnapshot = 0;
+			float mutabilityRangeSnapshot = 0.0f;
+			float mutabilityFactorSnapshot = 0.0f;
+			int gravitySnapshot = 0;
+			int currentGenerationSnapshot = 0;
+			int firstHistoryGeneration = 0;
+			int lastHistoryGeneration = 0;
+			float bestFitnessMeters = 0.0f;
+			bool hasHistory = false;
+			bool saveRangeHasData = false;
+			std::vector<int> storedHistoryGenerationsSnapshot;
+			{
+				std::lock_guard<std::mutex> dataLock(world->dataMutex);
+				worldNameSnapshot = world->worldName;
+				worldSeedSnapshot = world->worldSeed;
+				numCreaturesSnapshot = world->numOfCreatures;
+				secondsPerSimulationSnapshot = world->secondsPerSimulation;
+				mutabilityRangeSnapshot = world->mutabilityRange;
+				mutabilityFactorSnapshot = world->mutabilityFactor;
+				gravitySnapshot = world->gravity;
+				currentGenerationSnapshot = world->generation;
+				hasHistory = !world->bestGenerationalCreatures.empty();
+				firstHistoryGeneration = hasHistory ? world->GetFirstHistoryGeneration() : world->generation;
+				lastHistoryGeneration = hasHistory ? world->GetLastHistoryGeneration() : world->generation;
+				storedHistoryGenerationsSnapshot = world->storedHistoryGenerations;
+				for (const Creature& creature : world->bestGenerationalCreatures) {
+					bestFitnessMeters = std::max(bestFitnessMeters, creature.fitness / 100.0f);
+				}
+			}
+
+			saveStartGeneration = std::clamp(saveStartGeneration, firstHistoryGeneration, lastHistoryGeneration);
+			saveEndGeneration = std::clamp(saveEndGeneration, saveStartGeneration, lastHistoryGeneration);
+			saveRangeHasData = std::any_of(storedHistoryGenerationsSnapshot.begin(), storedHistoryGenerationsSnapshot.end(), [&](int generation) {
+				return generation >= saveStartGeneration && generation <= saveEndGeneration;
+				});
+
+			DrawTextUI("Save World", absoluteWidth / 2, 54, 2.0f, BLACK, UIAnchor::Center);
+			DrawTextUI("World Name: " + worldNameSnapshot, 110, 120, 1.0f, BLACK);
+			DrawTextUI("World Seed: " + std::to_string(worldSeedSnapshot), 110, 158, 1.0f, BLACK);
+			
+			DrawTextUI("Current generation: " + std::to_string(currentGenerationSnapshot), 110, 234, 1.0f, BLACK);
+			DrawTextUI("Total stored generations: " + std::to_string(storedHistoryGenerationsSnapshot.size()), 110, 272, 1.0f, BLACK);
+			
+			DrawTextUI(std::format("Best fitness: {:.2f} meters", bestFitnessMeters), absoluteWidth / 2, 330, 1.0f, BLACK, UIAnchor::Center);
+			DrawTextUI("Seconds per sim: " + std::to_string(secondsPerSimulationSnapshot), 610, 158, 1.0f, BLACK);
+			DrawTextUI(std::format("Mutability range: {:.2f}", mutabilityRangeSnapshot), 610, 196, 1.0f, BLACK);
+			DrawTextUI(std::format("Mutability factor: {:.2f}", mutabilityFactorSnapshot), 610, 234, 1.0f, BLACK);
+			DrawTextUI("Gravity: " + std::to_string(gravitySnapshot), 610, 272, 1.0f, BLACK);
+			DrawTextUI("Amount of creatures: " + std::to_string(numCreaturesSnapshot), 610, 120, 1.0f, BLACK);
+
+			DrawTextUI("History generations to save", absoluteWidth / 2, 400, 1.0f, BLACK, UIAnchor::Center);
+			Rectangle rangeRect = DrawRectUI(absoluteWidth / 2, 454, 840, 64, DARKGRAY, UIAnchor::Center);
+			DrawRectUI(absoluteWidth / 2, 454, 840, 64, BLACK, UIAnchor::Center, 2.0f);
+
+			float nubWidth = 10.0f * UIScale();
+			float trackStart = rangeRect.x + nubWidth;
+			float trackEnd = rangeRect.x + rangeRect.width - nubWidth;
+			int historyRange = std::max(1, lastHistoryGeneration - firstHistoryGeneration);
+			auto generationToX = [&](int generationValue) {
+				float t = (float)(generationValue - firstHistoryGeneration) / historyRange;
+				return trackStart + t * (trackEnd - trackStart);
+				};
+			auto xToGeneration = [&](float xValue) {
+				float t = std::clamp((xValue - trackStart) / std::max(1.0f, trackEnd - trackStart), 0.0f, 1.0f);
+				return firstHistoryGeneration + (int)(t * historyRange + 0.5f);
+				};
+
+			float startX = generationToX(saveStartGeneration);
+			float endX = generationToX(saveEndGeneration);
+			float rangeBarY = rangeRect.y + 8 * UIScale();
+			float rangeBarHeight = rangeRect.height - 16 * UIScale();
+			DrawRectangle((int)startX, (int)rangeBarY, (int)std::max(1.0f, endX - startX), (int)rangeBarHeight, RED);
+			auto drawExistingRun = [&](int runStart, int runEnd) {
+				float runStartX = generationToX(std::max(runStart, saveStartGeneration));
+				float runEndX = generationToX(std::min(runEnd, saveEndGeneration));
+				DrawRectangle((int)runStartX, (int)rangeBarY, (int)std::max(1.0f, runEndX - runStartX), (int)rangeBarHeight, GREEN);
+				};
+			int runStart = -1;
+			int previousGeneration = -1;
+			for (int storedGeneration : storedHistoryGenerationsSnapshot) {
+				if (storedGeneration < saveStartGeneration || storedGeneration > saveEndGeneration) {
+					continue;
+				}
+				if (runStart < 0) {
+					runStart = storedGeneration;
+				}
+				else if (storedGeneration != previousGeneration + 1) {
+					drawExistingRun(runStart, previousGeneration);
+					runStart = storedGeneration;
+				}
+				previousGeneration = storedGeneration;
+			}
+			if (runStart >= 0) {
+				drawExistingRun(runStart, previousGeneration);
+			}
+			DrawRectangle((int)(startX - nubWidth * 0.5f), (int)(rangeRect.y + 4 * UIScale()), (int)nubWidth, (int)(rangeRect.height - 8 * UIScale()), LIGHTGRAY);
+			DrawRectangle((int)(endX - nubWidth * 0.5f), (int)(rangeRect.y + 4 * UIScale()), (int)nubWidth, (int)(rangeRect.height - 8 * UIScale()), LIGHTGRAY);
+			DrawTextUI(std::format("{} - {}", saveStartGeneration, saveEndGeneration), absoluteWidth / 2, 454, 1.0f, WHITE, UIAnchor::Center);
+
+			if (hasHistory && CheckCollisionPointRec(GetMousePosition(), rangeRect) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+				float mouseX = GetMousePosition().x;
+				activeSaveRangeHandle = std::abs(mouseX - startX) <= std::abs(mouseX - endX) ? 0 : 1;
+			}
+			if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+				activeSaveRangeHandle = -1;
+			}
+			if (activeSaveRangeHandle >= 0) {
+				int selectedGeneration = xToGeneration(GetMousePosition().x);
+				if (activeSaveRangeHandle == 0) {
+					saveStartGeneration = std::clamp(selectedGeneration, firstHistoryGeneration, saveEndGeneration);
+				}
+				else {
+					saveEndGeneration = std::clamp(selectedGeneration, saveStartGeneration, lastHistoryGeneration);
+				}
+			}
+			saveRangeHasData = std::any_of(storedHistoryGenerationsSnapshot.begin(), storedHistoryGenerationsSnapshot.end(), [&](int generation) {
+				return generation >= saveStartGeneration && generation <= saveEndGeneration;
+				});
+			if (!saveRangeHasData) {
+				DrawTextUI(std::format("No data for generations {} to {}", saveStartGeneration, saveEndGeneration), absoluteWidth / 2, 505, 0.8f, RED, UIAnchor::Center);
+			}
+
+			Button graphToggleButton(1200, absoluteWidth / 2, 575, 480, 56, saveIncludeGraph ? "Save Percentile Graph: Yes" : "Save Percentile Graph: No");
+			Button saveButton(1201, absoluteWidth / 2 + 150, 680, 240, 64, "Save");
+			Button backButton(1202, absoluteWidth / 2 - 150, 680, 240, 64, "Back");
+			saveButton.enabled = saveRangeHasData;
+
+			graphToggleButton.draw();
+			saveButton.draw();
+			backButton.draw();
+
+			if (!saveInProgress) {
+				graphToggleButton.tick();
+				saveButton.tick();
+				backButton.tick();
+			}
+
+			if (graphToggleButton.active) {
+				saveIncludeGraph = !saveIncludeGraph;
+			}
+			if (saveButton.active && saveRangeHasData) {
+				saveInProgress = true;
+				saveWorkStarted.store(false);
+				int startToSave = saveStartGeneration;
+				int endToSave = saveEndGeneration;
+				bool includeGraph = saveIncludeGraph;
+				saveFuture = std::async(std::launch::async, [worldPtr = world.get(), &saveWorkStarted, startToSave, endToSave, includeGraph] {
+					worldPtr->Save(&saveWorkStarted, startToSave, endToSave, includeGraph);
+					});
+			}
+			if (backButton.active) {
+				activeSaveRangeHandle = -1;
+				currentState = STATE_GAME;
+			}
+			if (saveInProgress && saveWorkStarted.load()) {
+				drawBusyPanel("Saving world...", 610);
+			}
+
+			break;
+		}
 		case STATE_GAME: {
 
 			ClearBackground(BeigeWORLD);
@@ -600,11 +770,16 @@ int main() {
 
 			if (generationFinishedThisFrame) {
 				int currentGeneration = 0;
+				int firstHistoryGeneration = 0;
+				int lastHistoryGeneration = 0;
 				{
 					std::lock_guard<std::mutex> dataLock(world->dataMutex);
 					currentGeneration = world->generation;
+					firstHistoryGeneration = world->GetFirstHistoryGeneration();
+					lastHistoryGeneration = world->GetLastHistoryGeneration();
 				}
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = currentGeneration;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->minVal = firstHistoryGeneration;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = lastHistoryGeneration;
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = currentGeneration;
 
 				if (doGenerationsNonstop) {
@@ -621,11 +796,16 @@ int main() {
 			{
 				std::unique_lock<std::mutex> dataLock(world->dataMutex, std::try_to_lock);
 				if (dataLock.owns_lock()) {
+					int viewHistoryIndex = world->GetHistoryIndexForGeneration(world->viewGeneration);
+					viewHistoryIndex = std::clamp(viewHistoryIndex, 0, std::max(0, (int)world->worstGenerationalCreatures.size() - 1));
+					bool viewGenerationHasData = world->HasHistoryDataForGeneration(world->viewGeneration);
 					DrawTextUI("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 36, 36, 1, BLACK);
 					DrawTextUI("Generation: " + std::to_string(world->generation), 36, 72, 2, BLACK);
-					DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 160, 1, BLACK);
-					DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 200, 1, BLACK);
-					DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[world->viewGeneration].fitness / 100), 36, 240, 1, BLACK);
+					if (viewGenerationHasData) {
+						DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[viewHistoryIndex].fitness / 100), 36, 160, 1, BLACK);
+						DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[viewHistoryIndex].fitness / 100), 36, 200, 1, BLACK);
+						DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[viewHistoryIndex].fitness / 100), 36, 240, 1, BLACK);
+					}
 				}
 			}
 
@@ -637,32 +817,33 @@ int main() {
 			}
 
 			bool canViewAllCreatures = false;
+			bool viewGenerationHasData = false;
+			int selectedViewGeneration = 0;
 			{
 				std::lock_guard<std::mutex> dataLock(world->dataMutex);
 				canViewAllCreatures = world->viewGeneration == world->generation;
+				viewGenerationHasData = world->HasHistoryDataForGeneration(world->viewGeneration);
+				selectedViewGeneration = world->viewGeneration;
 			}
 
 			for (int i = 0; i < ingameUIElements.size(); i++) {
-				bool elementDisabled = ingameUIElements[i]->elementID == 8 && !canViewAllCreatures;
-				if (!elementDisabled) {
-					ingameUIElements[i]->tick();
-				}
+				ingameUIElements[i]->enabled = !(ingameUIElements[i]->elementID == 8 && !canViewAllCreatures);
+				ingameUIElements[i]->tick();
 				ingameUIElements[i]->draw();
-				if (elementDisabled) {
-					DrawRectUI(ingameUIElements[i]->x, ingameUIElements[i]->y, ingameUIElements[i]->width, ingameUIElements[i]->height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
-					DrawTextUI(ingameUIElements[i]->name, ingameUIElements[i]->x, ingameUIElements[i]->y, 1, GRAY, UIAnchor::Center);
-				}
-				if (ingameUIElements[i]->active && !elementDisabled && !confirmLeaveWorld && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
+				if (ingameUIElements[i]->active && !confirmLeaveWorld && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
 					switch (ingameUIElements[i]->elementID) {
 					case 0: // Main Menu
 						confirmLeaveWorld = true;
 						break;
 					case 1: // Save
-						saveInProgress = true;
-						saveWorkStarted.store(false);
-						saveFuture = std::async(std::launch::async, [worldPtr = world.get(), &saveWorkStarted] {
-							worldPtr->Save(&saveWorkStarted);
-							});
+						{
+							std::lock_guard<std::mutex> dataLock(world->dataMutex);
+							saveStartGeneration = world->GetFirstHistoryGeneration();
+							saveEndGeneration = world->GetLastHistoryGeneration();
+						}
+						saveIncludeGraph = true;
+						activeSaveRangeHandle = -1;
+						currentState = STATE_SAVE;
 						break;
 					case 2: // Next Generation
 						if (world->StartGeneration()) {
@@ -723,6 +904,9 @@ int main() {
 						break;
 					}
 				}
+			}
+			if (!viewGenerationHasData) {
+				DrawTextUI(std::format("No data for generation #{}", selectedViewGeneration), 300, 405, 0.8f, RED, UIAnchor::Center);
 			}
 
 			if (doGenerationsNonstop && !continuousGenerationThreadRunning && !world->IsGenerationInProgress()) {
@@ -811,27 +995,17 @@ int main() {
 
 			bool canGoPrevious = pageCount > 1 && viewAllCreaturePage > 0;
 			bool canGoNext = pageCount > 1 && viewAllCreaturePage < pageCount - 1;
+			previousPageButton.enabled = canGoPrevious;
+			nextPageButton.enabled = canGoNext;
 			previousPageButton.draw();
 			nextPageButton.draw();
-			if (!canGoPrevious) {
-				DrawRectUI(previousPageButton.x, previousPageButton.y, previousPageButton.width, previousPageButton.height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
-				DrawTextUI("<", previousPageButton.x, previousPageButton.y, 1, GRAY, UIAnchor::Center);
+			previousPageButton.tick();
+			if (previousPageButton.active) {
+				viewAllCreaturePage--;
 			}
-			if (!canGoNext) {
-				DrawRectUI(nextPageButton.x, nextPageButton.y, nextPageButton.width, nextPageButton.height, Fade(LIGHTGRAY, 0.7f), UIAnchor::Center);
-				DrawTextUI(">", nextPageButton.x, nextPageButton.y, 1, GRAY, UIAnchor::Center);
-			}
-			if (canGoPrevious) {
-				previousPageButton.tick();
-				if (previousPageButton.active) {
-					viewAllCreaturePage--;
-				}
-			}
-			if (canGoNext) {
-				nextPageButton.tick();
-				if (nextPageButton.active) {
-					viewAllCreaturePage++;
-				}
+			nextPageButton.tick();
+			if (nextPageButton.active) {
+				viewAllCreaturePage++;
 			}
 			DrawTextUI(std::format("{} / {}", viewAllCreaturePage + 1, pageCount), absoluteWidth / 2, 652, 0.8f, DARKGRAY, UIAnchor::Center);
 
@@ -854,9 +1028,9 @@ int main() {
 
 				const float gridX = 52.0f;
 				const float gridY = 108.0f;
-				const float cellWidth = 21.0f;
-				const float cellHeight = 18.0f;
-				const float cellGap = 2.0f;
+				const float cellWidth = 20.0f;
+				const float cellHeight = 17.0f;
+				const float cellGap = 3.0f;
 				const Vector2 mousePosition = GetMousePosition();
 
 				for (int i = 0; i < creaturesOnPage; ++i) {
@@ -867,7 +1041,7 @@ int main() {
 					const float cellY = gridY + row * (cellHeight + cellGap);
 
 					Rectangle cellRect = DrawGradientUI(cellX, cellY, cellWidth, cellHeight, LIME, GREEN);
-					DrawRectUI(cellX, cellY, cellWidth, cellHeight, BLACK, UIAnchor::TopLeft, 1.0f);
+					// DrawRectUI(cellX, cellY, cellWidth, cellHeight, BLACK, UIAnchor::TopLeft, 1.0f);
 
 					if (CheckCollisionPointRec(mousePosition, cellRect)) {
 						hoveredCreatureIndex = creatureIndex;

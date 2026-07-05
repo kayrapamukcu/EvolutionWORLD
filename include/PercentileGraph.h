@@ -14,6 +14,8 @@ public:
 	float minValue = -1.0f;
 
 	int maxDataPoints = 500;
+	int firstGeneration = 0;
+	std::vector<int> storedGenerations;
 	std::array<std::vector<float>, 15> data; // holds all the percentile data, worst = 0, best = 14
 	std::array<Color, 15> percentileColors;
 	Color backgroundColor = { 200, 200, 200, 255 };

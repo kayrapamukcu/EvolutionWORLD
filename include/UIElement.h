@@ -8,8 +8,10 @@ public:
     Rectangle drawRect;
     std::string name;
     bool active = false;
+    bool enabled = true;
 
     virtual void draw() = 0;
     virtual void tick() = 0;
     virtual std::string getContent() = 0;
+    virtual ~UIElement() = default;
 };

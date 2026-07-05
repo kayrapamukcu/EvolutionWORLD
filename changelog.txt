@@ -24,5 +24,7 @@
 + Added confirmation window when leaving world
 
 05/07/2026:
-
 + New view all creatures button!
++ Completely revamped saving: can choose ranges of generations to save
+* Fixed bugs
+* (Code) Moved button/slider inactivity behavior to their respective classes
