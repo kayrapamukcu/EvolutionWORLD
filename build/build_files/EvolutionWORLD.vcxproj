@@ -540,6 +540,7 @@
     <ClInclude Include="..\..\include\InputField.h" />
     <ClInclude Include="..\..\include\PercentileGraph.h" />
     <ClInclude Include="..\..\include\RNG.h" />
+    <ClInclude Include="..\..\include\SpeciesGraph.h" />
     <ClInclude Include="..\..\include\Slider.h" />
     <ClInclude Include="..\..\include\miniz.h" />
     <ClInclude Include="..\..\include\tinyfiledialogs.h" />
@@ -555,6 +556,7 @@
     <ClCompile Include="..\..\src\InputField.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
     <ClCompile Include="..\..\src\PercentileGraph.cpp" />
+    <ClCompile Include="..\..\src\SpeciesGraph.cpp" />
     <ClCompile Include="..\..\src\Slider.cpp" />
     <ClCompile Include="..\..\src\World.cpp" />
   </ItemGroup>

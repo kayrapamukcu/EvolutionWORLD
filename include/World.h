@@ -7,6 +7,7 @@
 #include <vector>
 #include "Creature.h"
 #include "PercentileGraph.h"
+#include "SpeciesGraph.h"
 #include <thread>
 #include <condition_variable>
 #include <atomic>
@@ -20,7 +21,8 @@
 // 2 : v1.5.2+ history ranges and percentile graph generation offset
 // 3 : sparse saved history generation indices
 // 4 : creature node/muscle count ranges
-constexpr uint64_t savefileVersion = 4;
+// 5 : species graph history
+constexpr uint64_t savefileVersion = 5;
 
 // Helper functions for reading/writing binary data
 template <typename T>
@@ -166,6 +168,22 @@ inline void writePercentileGraph(std::ostream& out, const PercentileGraph& g) {
 	writeValue(out, g.firstGeneration);
 	writeVector(out, g.storedGenerations);
 }
+inline void writeSpeciesGraph(std::ostream& out, const SpeciesGraph& g) {
+	writeValue(out, g.x);
+	writeValue(out, g.y);
+	writeValue(out, g.width);
+	writeValue(out, g.height);
+	writeValue(out, g.maxDataPoints);
+	writeValue(out, g.firstGeneration);
+	writeValue(out, g.backgroundColor);
+	writeVector(out, g.storedGenerations);
+
+	uint64_t generationCount = g.data.size();
+	writeValue(out, generationCount);
+	for (const auto& generationData : g.data) {
+		writeVector(out, generationData);
+	}
+}
 inline void readPercentileGraph(std::istream& in, PercentileGraph& g, uint64_t fileVersion = savefileVersion) {
 	readValue(in, g.x);
 	readValue(in, g.y);
@@ -203,6 +221,25 @@ inline void readPercentileGraph(std::istream& in, PercentileGraph& g, uint64_t f
 
 	g.world = nullptr;
 }
+inline void readSpeciesGraph(std::istream& in, SpeciesGraph& g) {
+	readValue(in, g.x);
+	readValue(in, g.y);
+	readValue(in, g.width);
+	readValue(in, g.height);
+	readValue(in, g.maxDataPoints);
+	readValue(in, g.firstGeneration);
+	readValue(in, g.backgroundColor);
+	readVector(in, g.storedGenerations);
+
+	uint64_t generationCount;
+	readValue(in, generationCount);
+	g.data.resize(generationCount);
+	for (auto& generationData : g.data) {
+		readVector(in, generationData);
+	}
+
+	g.world = nullptr;
+}
 
 struct Savefile {
 	uint64_t savefileVersion;
@@ -230,6 +267,7 @@ struct Savefile {
 	std::vector<Creature> bestGenerationalCreatures;
 
 	PercentileGraph percentileGraph;
+	SpeciesGraph speciesGraph;
 };
 
 struct MiniWorld {
@@ -313,7 +351,8 @@ public:
 	bool generationInProgress = false;
 	int currentTicks = 0; // Shared with workers
 
-	PercentileGraph percentileGraph = PercentileGraph(610, 70, 360, 340);
+	PercentileGraph percentileGraph = PercentileGraph(600, 40, 400, 340);
+	SpeciesGraph speciesGraph = SpeciesGraph(600, 400, 400, 340);
 	inline static std::string worldName;
 	inline static uint32_t worldSeed;
 	inline static int ticksPerSecond = 100;
@@ -365,6 +404,7 @@ public:
 		RNG::setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
 		percentileGraph.world = this;
+		speciesGraph.world = this;
 		if (initialize) {
 			Creature::idCounter = 0;
 			Creature::updateNodeAndMuscleRangesAndVariations();
@@ -394,6 +434,7 @@ public:
 		RNG::setSeed(worldSeed);
 		creatures = std::make_unique<Creature[]>(numOfCreatures);
 		percentileGraph.world = this;
+		speciesGraph.world = this;
 		Creature::idCounter = 0;
 		Creature::updateNodeAndMuscleRangesAndVariations();
 		InitializeWorld();

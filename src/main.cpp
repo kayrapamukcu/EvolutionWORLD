@@ -458,19 +458,18 @@ int main() {
 
 			ingameUIElements.clear();
 
-			ingameUIElements.push_back(std::make_unique<Button>(0, 175, 720, 310, 64, "Back"));
-			ingameUIElements.push_back(std::make_unique<Button>(1, 512, 720, 310, 64, "Save"));
+			ingameUIElements.push_back(std::make_unique<Button>(0, 155, 737, 270, 30, "Back"));
+			ingameUIElements.push_back(std::make_unique<Button>(1, 155, 703, 270, 30, "Settings"));
 			
-			ingameUIElements.push_back(std::make_unique<Button>(2, 175, 520, 310, 64, "Next Generation"));
-			ingameUIElements.push_back(std::make_unique<Button>(3, 850, 520, 310, 64, "Do Gens Continuously"));
-																			  
-			ingameUIElements.push_back(std::make_unique<Button>(4, 175, 620, 310, 64, "Watch Worst Creature"));
-			ingameUIElements.push_back(std::make_unique<Button>(5, 512, 620, 310, 64, "Watch Avg Creature"));
-			ingameUIElements.push_back(std::make_unique<Button>(6, 850, 620, 310, 64, "Watch Best Creature"));
-
-			ingameUIElements.push_back(std::make_unique<Slider>(200, 300, 350, 528, 80, "View Generation", 0, 0, 0));
-			ingameUIElements.push_back(std::make_unique<Button>(7, 850, 720, 310, 64, "Settings"));
-			ingameUIElements.push_back(std::make_unique<Button>(8, 512, 520, 310, 64, "View All Creatures"));
+			ingameUIElements.push_back(std::make_unique<Button>(2, 445, 720, 270, 64, "Save"));
+																			 
+			ingameUIElements.push_back(std::make_unique<Button>(3, 155, 620, 270, 64, "Next Generation"));
+			ingameUIElements.push_back(std::make_unique<Button>(4, 445, 620, 270, 64, "Do Gens Continuously"));
+			
+			ingameUIElements.push_back(std::make_unique<Button>(5, 155, 520, 270, 64, "View All Creatures"));
+			ingameUIElements.push_back(std::make_unique<Button>(6, 445, 520, 270, 64, "Watch Best Creature"));
+			
+			ingameUIElements.push_back(std::make_unique<Slider>(200, 270, 360, 500, 80, "View Generation", 0, 0, 0));
 
 			settingsUIElements.clear();
 
@@ -939,12 +938,12 @@ int main() {
 					int viewHistoryIndex = world->GetHistoryIndexForGeneration(world->viewGeneration);
 					viewHistoryIndex = std::clamp(viewHistoryIndex, 0, std::max(0, (int)world->worstGenerationalCreatures.size() - 1));
 					bool viewGenerationHasData = world->HasHistoryDataForGeneration(world->viewGeneration);
-					DrawTextUI("On World '" + world->worldName + "' with seed " + std::to_string(world->worldSeed), 36, 36, 1, BLACK);
-					DrawTextUI("Generation: " + std::to_string(world->generation), 36, 72, 2, BLACK);
+					DrawTextUI("World \"" + world->worldName + "\", seed " + std::to_string(world->worldSeed), 20, 36, 1, BLACK);
+					DrawTextUI("Generation: " + std::to_string(world->generation), 20, 72, 2, BLACK);
 					if (viewGenerationHasData) {
-						DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[viewHistoryIndex].fitness / 100), 36, 160, 1, BLACK);
-						DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[viewHistoryIndex].fitness / 100), 36, 200, 1, BLACK);
-						DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[viewHistoryIndex].fitness / 100), 36, 240, 1, BLACK);
+						DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 160, 1, BLACK);
+						DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 200, 1, BLACK);
+						DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 240, 1, BLACK);
 					}
 				}
 			}
@@ -953,6 +952,7 @@ int main() {
 				std::unique_lock<std::mutex> dataLock(world->dataMutex, std::try_to_lock);
 				if (dataLock.owns_lock()) {
 					world->percentileGraph.draw();
+					world->speciesGraph.draw();
 				}
 			}
 
@@ -975,7 +975,12 @@ int main() {
 					case 0: // Main Menu
 						confirmLeaveWorld = true;
 						break;
-					case 1: // Save
+					case 1: // Settings
+						settingsReturnState = STATE_GAME;
+						currentState = STATE_OPTIONS;
+						confirmLeaveWorld = false;
+						break;
+					case 2: // Save
 						{
 							std::lock_guard<std::mutex> dataLock(world->dataMutex);
 							saveStartGeneration = world->GetFirstHistoryGeneration();
@@ -985,12 +990,12 @@ int main() {
 						activeSaveRangeHandle = -1;
 						currentState = STATE_SAVE;
 						break;
-					case 2: // Next Generation
+					case 3: // Next Generation
 						if (world->StartGeneration()) {
 							generationStartTime = GetTime();
 						}
 						break;
-					case 3: // Do Generations Nonstop
+					case 4: // Do Generations Nonstop
 						doGenerationsNonstop = true;
 						stopContinuousGenerations.store(false);
 						continuousGenerationsCompleted.store(0);
@@ -1014,29 +1019,14 @@ int main() {
 							}
 							});
 						break;
-					case 4: // See Worst Creature
-						creatureIndexToBeDrawn = 0;
-						drawCreatureFromCurrentPopulation = false;
-						currentState = STATE_DRAW_CREATURE;
-						break;
-					case 5: // See Average Creature
-						creatureIndexToBeDrawn = 1;
-						drawCreatureFromCurrentPopulation = false;
-						currentState = STATE_DRAW_CREATURE;
+					case 5: // View All Creatures
+						viewAllCreaturePage = 0;
+						currentState = STATE_VIEW_ALL;
 						break;
 					case 6: // See Best Creature
 						creatureIndexToBeDrawn = 2;
 						drawCreatureFromCurrentPopulation = false;
 						currentState = STATE_DRAW_CREATURE;
-						break;
-					case 7: // Options
-						settingsReturnState = STATE_GAME;
-						currentState = STATE_OPTIONS;
-						confirmLeaveWorld = false;
-						break;
-					case 8: // View All Creatures
-						viewAllCreaturePage = 0;
-						currentState = STATE_VIEW_ALL;
 						break;
 					case 200: // View Generation Slider
 						world->viewGeneration = std::stoi(ingameUIElements[i]->getContent());
@@ -1082,7 +1072,7 @@ int main() {
 			}
 
 			if (appSettings.showGenerationsPerSecond && doGenerationsNonstop) {
-				DrawTextUI(std::format("Generations/sec: {:.2f}", generationsPerSecond), absoluteWidth - 300, 30, 0.75, BLACK);
+				DrawTextUI(std::format("Generations/sec: {:.2f}", generationsPerSecond), 720, 10, 0.75f, BLACK);
 			}
 
 			if (saveInProgress && saveWorkStarted.load()) {

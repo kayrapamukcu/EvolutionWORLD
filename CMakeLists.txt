@@ -27,6 +27,7 @@ add_executable(EvolutionWORLD
     src/InputField.cpp
     src/main.cpp
     src/PercentileGraph.cpp
+    src/SpeciesGraph.cpp
     src/Slider.cpp
     src/World.cpp
 )

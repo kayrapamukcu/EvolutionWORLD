@@ -275,6 +275,7 @@ void World::SendGenerationalDataToPercentileGraph()
 	percentileGraph.data[14].push_back(creatures[numOfCreatures - 1].fitness / 100.0f); // best creature
 
     percentileGraph.updateExtremeValues();
+    speciesGraph.addGeneration(generation, creatures.get(), numOfCreatures);
 }
 
 void World::WorkerThread(int begin, int end)
@@ -407,6 +408,28 @@ static PercentileGraph SlicePercentileGraph(const PercentileGraph& source, int s
     return result;
 }
 
+static SpeciesGraph SliceSpeciesGraph(const SpeciesGraph& source, int startGeneration, int endGeneration, bool includeGraph)
+{
+    SpeciesGraph result = source;
+    result.data.clear();
+    result.storedGenerations.clear();
+    result.firstGeneration = startGeneration;
+
+    if (!includeGraph || source.data.empty() || source.storedGenerations.size() != source.data.size()) {
+        return result;
+    }
+
+    auto [firstIndex, lastIndex] = GetGenerationSliceIndices(source.storedGenerations, startGeneration, endGeneration);
+    if (lastIndex < firstIndex) {
+        return result;
+    }
+
+    result.storedGenerations.assign(source.storedGenerations.begin() + firstIndex, source.storedGenerations.begin() + lastIndex + 1);
+    result.data.assign(source.data.begin() + firstIndex, source.data.begin() + lastIndex + 1);
+    result.firstGeneration = result.storedGenerations.empty() ? startGeneration : result.storedGenerations.front();
+    return result;
+}
+
 void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int saveEndGeneration, bool savePercentileGraph)
 {
     // new file
@@ -454,6 +477,7 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
     std::vector<Creature> averageGenerationalCreaturesSnapshot;
     std::vector<Creature> bestGenerationalCreaturesSnapshot;
     PercentileGraph percentileGraphSnapshot(610, 70, 360, 340);
+    SpeciesGraph speciesGraphSnapshot(610, 430, 360, 120);
 
     {
         std::lock_guard<std::mutex> dataLock(dataMutex);
@@ -492,6 +516,7 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
         averageGenerationalCreaturesSnapshot = SliceCreatureHistory(averageGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
         bestGenerationalCreaturesSnapshot = SliceCreatureHistory(bestGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
         percentileGraphSnapshot = SlicePercentileGraph(percentileGraph, historyStartGenerationSnapshot, historyEndGenerationSnapshot, savePercentileGraph);
+        speciesGraphSnapshot = SliceSpeciesGraph(speciesGraph, historyStartGenerationSnapshot, historyEndGenerationSnapshot, savePercentileGraph);
     }
 
     try {
@@ -520,6 +545,7 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
         writeCreatureVector(serialized, averageGenerationalCreaturesSnapshot);
         writeCreatureVector(serialized, bestGenerationalCreaturesSnapshot);
 	    writePercentileGraph(serialized, percentileGraphSnapshot);
+        writeSpeciesGraph(serialized, speciesGraphSnapshot);
 
         std::ofstream out(savePath, std::ios::binary);
         if (!out) {
@@ -644,12 +670,16 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
             loadedWorld->firstStoredGeneration = loadedWorld->storedHistoryGenerations.front();
         }
         readPercentileGraph(dataIn, loadedWorld->percentileGraph, fileVersion);
+        if (fileVersion >= 5) {
+            readSpeciesGraph(dataIn, loadedWorld->speciesGraph);
+        }
         loadedWorld->viewGeneration = std::clamp(
             loadedWorld->generation,
             loadedWorld->GetFirstHistoryGeneration(),
             loadedWorld->GetLastHistoryGeneration()
         );
         loadedWorld->percentileGraph.world = loadedWorld.get();
+        loadedWorld->speciesGraph.world = loadedWorld.get();
         loadedWorld->StartWorkerThreads();
         in.close();
 
