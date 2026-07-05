@@ -6,7 +6,10 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <string>
+#include <vector>
+#include <numeric>
 
 int Creature::idCounter = 0;
 int Creature::FLOOR_HEIGHT = 100; 
@@ -85,39 +88,231 @@ void Creature::updateNodeAndMuscleRangesAndVariations() {
 	muscleStateTicksVariation = 0.5f * world->mutabilityFactor;
 }
 
-void Creature::initializeChild(Creature* parent) {
-	id = idCounter++;
+void Creature::initializeChild(Creature* parent)
+{
+    id = idCounter++;
 
-	nodeCount = parent->nodeCount;
-	muscleCount = parent->muscleCount;
+    int childNodeCount = parent->nodeCount;
+    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance) {
+        const int delta = RNG::biasedLowerInt(1, 5, 0.75f);
+        childNodeCount += RNG::randomInt(0, 1) == 0 ? -delta : delta;
+    }
 
-	nodes = std::make_unique<Node[]>(parent->nodeCount);
-	muscles = std::make_unique<Muscle[]>(parent->muscleCount);
+    childNodeCount = std::clamp(childNodeCount, world->minNodes, world->maxNodes);
 
-	for (int i = 0; i < muscleCount; i++) {
-		muscles[i].node1 = parent->muscles[i].node1;
-		muscles[i].node2 = parent->muscles[i].node2;
-	}
+    const int minMuscles = childNodeCount; // mandatory ring
+    const int maxMuscles = childNodeCount * (childNodeCount - 1) / 2;
+    const int maxStorableMuscles = std::min(maxMuscles, (int)std::numeric_limits<uint8_t>::max());
 
-	for (int i = 0; i < nodeCount; ++i) {
-		nodes[i].initialX = std::clamp(parent->nodes[i].initialX + RNG::randomFloat(-nodeInitialXVariation, nodeInitialXVariation), minNodeInitialX, maxNodeInitialX);
-		nodes[i].initialY = std::clamp(parent->nodes[i].initialY + RNG::randomFloat(-nodeInitialYVariation, nodeInitialYVariation), minNodeInitialY, maxNodeInitialY);
-		nodes[i].x = nodes[i].initialX;
-		nodes[i].y = nodes[i].initialY;
-		nodes[i].xSpeed = 0.0f;
-		nodes[i].ySpeed = 0.0f;
-		nodes[i].mass = std::clamp(parent->nodes[i].mass + RNG::randomFloat(-nodeMassVariation, nodeMassVariation), minNodeMass, maxNodeMass);
-		nodes[i].friction = std::clamp(parent->nodes[i].friction + RNG::randomFloat(-nodeFrictionVariation, nodeFrictionVariation), minNodeFriction, maxNodeFriction);
-	}
-	for (int i = 0; i < muscleCount; ++i) {
-		muscles[i].state1Ticks = std::clamp(parent->muscles[i].state1Ticks + RNG::randomInt(-muscleStateTicksVariation, muscleStateTicksVariation), (int)minMuscleStateTicks, (int)maxMuscleStateTicks);
-		muscles[i].state2Ticks = std::clamp(parent->muscles[i].state2Ticks + RNG::randomInt(-muscleStateTicksVariation, muscleStateTicksVariation), (int)minMuscleStateTicks, (int)maxMuscleStateTicks);
-		muscles[i].length1 = std::clamp(parent->muscles[i].length1 + RNG::randomFloat(-muscleLengthVariation, muscleLengthVariation), minMuscleLength, maxMuscleLength);
-		muscles[i].length2 = std::clamp(parent->muscles[i].length2 + RNG::randomFloat(-muscleLengthVariation, muscleLengthVariation), minMuscleLength, maxMuscleLength);
-		muscles[i].strength = std::clamp(parent->muscles[i].strength + RNG::randomFloat(-muscleStrengthVariation, muscleStrengthVariation), minMuscleStrength, maxMuscleStrength);
-		muscles[i].currentMuscleStage = 0;
-		muscles[i].muscleTickCounter = 0;
-	}
+    int childMuscleCount = parent->muscleCount;
+    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance) {
+        const int delta = RNG::biasedLowerInt(1, 5, 0.75f);
+        childMuscleCount += RNG::randomInt(0, 1) == 0 ? -delta : delta;
+    }
+
+    childMuscleCount = std::clamp(childMuscleCount, minMuscles, maxStorableMuscles);
+
+    nodeCount = (uint8_t)childNodeCount;
+    muscleCount = (uint8_t)childMuscleCount;
+
+    nodes = std::make_unique<Node[]>(nodeCount);
+    muscles = std::make_unique<Muscle[]>(muscleCount);
+
+    const int parentNodeCount = parent->nodeCount;
+    const int n = nodeCount;
+    const int m = muscleCount;
+
+    // Randomly choose surviving parent nodes.
+    std::vector<char> removed(parentNodeCount, false);
+
+    for (int removedCount = 0; removedCount < parentNodeCount - n; ) {
+        int victim = RNG::randomInt(0, parentNodeCount - 1);
+        if (!removed[victim]) {
+            removed[victim] = true;
+            ++removedCount;
+        }
+    }
+
+    std::vector<int> sourceOld(n, -1);
+    std::vector<int> oldToNew(parentNodeCount, -1);
+
+    for (int oldIndex = 0, newIndex = 0; oldIndex < parentNodeCount && newIndex < n; ++oldIndex) {
+        if (!removed[oldIndex]) {
+            sourceOld[newIndex] = oldIndex;
+            oldToNew[oldIndex] = newIndex;
+            ++newIndex;
+        }
+    }
+
+    auto makeRandomNode = [&]() {
+        Node node{};
+        node.initialX = RNG::randomFloat(minNodeInitialX, maxNodeInitialX);
+        node.initialY = RNG::randomFloat(minNodeInitialY, maxNodeInitialY);
+        node.mass = RNG::randomFloat(minNodeMass, maxNodeMass);
+        node.friction = RNG::randomFloat(minNodeFriction, maxNodeFriction);
+        node.x = node.initialX;
+        node.y = node.initialY;
+        return node;
+        };
+
+    auto mutateNode = [&](const Node& p) {
+        Node node{};
+        node.initialX = std::clamp(p.initialX + RNG::randomFloat(-nodeInitialXVariation, nodeInitialXVariation), minNodeInitialX, maxNodeInitialX);
+        node.initialY = std::clamp(p.initialY + RNG::randomFloat(-nodeInitialYVariation, nodeInitialYVariation), minNodeInitialY, maxNodeInitialY);
+        node.mass = std::clamp(p.mass + RNG::randomFloat(-nodeMassVariation, nodeMassVariation), minNodeMass, maxNodeMass);
+        node.friction = std::clamp(p.friction + RNG::randomFloat(-nodeFrictionVariation, nodeFrictionVariation), minNodeFriction, maxNodeFriction);
+        node.x = node.initialX;
+        node.y = node.initialY;
+        return node;
+        };
+
+    for (int i = 0; i < n; ++i) {
+        nodes[i] = sourceOld[i] >= 0 ? mutateNode(parent->nodes[sourceOld[i]]) : makeRandomNode();
+    }
+
+    auto normalizeEdge = [](int& a, int& b) {
+        if (a > b) std::swap(a, b);
+        };
+
+    auto edgeIndex = [&](int a, int b) {
+        normalizeEdge(a, b);
+        return a * n + b;
+        };
+
+    auto parentEdgeIndex = [&](int a, int b) {
+        normalizeEdge(a, b);
+        return a * parentNodeCount + b;
+        };
+
+    std::vector<const Muscle*> parentEdge(parentNodeCount * parentNodeCount, nullptr);
+
+    for (int i = 0; i < parent->muscleCount; ++i) {
+        int a = parent->muscles[i].node1;
+        int b = parent->muscles[i].node2;
+        parentEdge[parentEdgeIndex(a, b)] = &parent->muscles[i];
+    }
+
+    auto parentMuscleForNewEdge = [&](int a, int b) -> const Muscle* {
+        int oldA = sourceOld[a];
+        int oldB = sourceOld[b];
+
+        if (oldA < 0 || oldB < 0) {
+            return nullptr;
+        }
+
+        return parentEdge[parentEdgeIndex(oldA, oldB)];
+        };
+
+    auto makeMuscle = [&](const Muscle* source, int a, int b) {
+        normalizeEdge(a, b);
+
+        Muscle muscle{};
+        muscle.node1 = (uint8_t)a;
+        muscle.node2 = (uint8_t)b;
+
+        if (source) {
+            muscle.state1Ticks = std::clamp(source->state1Ticks + RNG::randomInt(-muscleStateTicksVariation, muscleStateTicksVariation), (int)minMuscleStateTicks, (int)maxMuscleStateTicks);
+            muscle.state2Ticks = std::clamp(source->state2Ticks + RNG::randomInt(-muscleStateTicksVariation, muscleStateTicksVariation), (int)minMuscleStateTicks, (int)maxMuscleStateTicks);
+            muscle.length1 = std::clamp(source->length1 + RNG::randomFloat(-muscleLengthVariation, muscleLengthVariation), minMuscleLength, maxMuscleLength);
+            muscle.length2 = std::clamp(source->length2 + RNG::randomFloat(-muscleLengthVariation, muscleLengthVariation), minMuscleLength, maxMuscleLength);
+            muscle.strength = std::clamp(source->strength + RNG::randomFloat(-muscleStrengthVariation, muscleStrengthVariation), minMuscleStrength, maxMuscleStrength);
+        }
+        else {
+            muscle.state1Ticks = RNG::randomInt((int)minMuscleStateTicks, (int)maxMuscleStateTicks);
+            muscle.state2Ticks = RNG::randomInt((int)minMuscleStateTicks, (int)maxMuscleStateTicks);
+            muscle.length1 = RNG::randomFloat(minMuscleLength, maxMuscleLength);
+            muscle.length2 = RNG::randomFloat(minMuscleLength, maxMuscleLength);
+            muscle.strength = RNG::randomFloat(minMuscleStrength, maxMuscleStrength);
+        }
+
+        muscle.currentMuscleStage = 0;
+        muscle.muscleTickCounter = 0;
+
+        return muscle;
+        };
+
+    auto isRingEdge = [&](int a, int b) {
+        normalizeEdge(a, b);
+        return b == a + 1 || (a == 0 && b == n - 1);
+        };
+
+    std::vector<char> used(n * n, false);
+    std::vector<Muscle> childMuscles;
+    childMuscles.reserve(m);
+
+    auto addMuscle = [&](Muscle muscle) {
+        used[edgeIndex(muscle.node1, muscle.node2)] = true;
+        childMuscles.push_back(muscle);
+        };
+
+    // Mandatory full ring.
+    for (int i = 0; i < n; ++i) {
+        int a = i;
+        int b = (i + 1) % n;
+        addMuscle(makeMuscle(parentMuscleForNewEdge(a, b), a, b));
+    }
+
+    struct Candidate {
+        int a;
+        int b;
+        const Muscle* source;
+    };
+
+    std::vector<Candidate> inheritedExtras;
+
+    for (int i = 0; i < parent->muscleCount; ++i) {
+        int oldA = parent->muscles[i].node1;
+        int oldB = parent->muscles[i].node2;
+
+        int a = oldToNew[oldA];
+        int b = oldToNew[oldB];
+
+        if (a < 0 || b < 0 || a == b) {
+            continue;
+        }
+
+        normalizeEdge(a, b);
+
+        if (!used[edgeIndex(a, b)] && !isRingEdge(a, b)) {
+            inheritedExtras.push_back({ a, b, &parent->muscles[i] });
+        }
+    }
+
+    // Randomly preserve parent extra muscles until target count is reached.
+    while ((int)childMuscles.size() < m && !inheritedExtras.empty()) {
+        int index = RNG::randomInt(0, (int)inheritedExtras.size() - 1);
+        Candidate candidate = inheritedExtras[index];
+
+        addMuscle(makeMuscle(candidate.source, candidate.a, candidate.b));
+
+        inheritedExtras[index] = inheritedExtras.back();
+        inheritedExtras.pop_back();
+    }
+
+    // Fill remaining slots with completely random new muscles.
+    std::vector<std::pair<int, int>> freeEdges;
+
+    for (int a = 0; a < n; ++a) {
+        for (int b = a + 1; b < n; ++b) {
+            if (!used[edgeIndex(a, b)]) {
+                freeEdges.emplace_back(a, b);
+            }
+        }
+    }
+
+    while ((int)childMuscles.size() < m) {
+        int index = RNG::randomInt(0, (int)freeEdges.size() - 1);
+        auto [a, b] = freeEdges[index];
+
+        addMuscle(makeMuscle(nullptr, a, b));
+
+        freeEdges[index] = freeEdges.back();
+        freeEdges.pop_back();
+    }
+
+    for (int i = 0; i < m; ++i) {
+        muscles[i] = childMuscles[i];
+    }
 }
 
 bool Creature::hasConnection(int a, int b) const
@@ -139,15 +334,8 @@ void Creature::initialize()
 {
 	id = idCounter++;
 
-	constexpr int minNodes = 3;
-	constexpr int maxNodes = 32;
-
-	nodeCount = RNG::biasedLowerInt(minNodes, maxNodes, 0.4f);
-
-	int minMuscles = nodeCount;
-	int maxMuscles = nodeCount * (nodeCount - 1) / 2;
-
-	muscleCount = RNG::biasedLowerInt(minMuscles, maxMuscles, 0.25f);
+	nodeCount = RNG::biasedLowerInt(world->minNodes, world->maxNodes, 0.4f);
+	muscleCount = RNG::biasedLowerInt(nodeCount, nodeCount * (nodeCount - 1) / 2, 0.25f);
 
 	nodes = std::make_unique<Node[]>(nodeCount);
 	muscles = std::make_unique<Muscle[]>(muscleCount);

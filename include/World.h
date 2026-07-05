@@ -315,6 +315,13 @@ public:
 	inline static int secondsPerSimulation = 15;
 	inline static int numOfCreatures = 1000;
 	inline static int gravity = 98;
+
+	inline static int minNodes = 4;
+	inline static int maxNodes = 10;
+
+	inline static int maxMuscles = maxNodes * (maxNodes - 1) / 2;
+	inline static float structuralMutationChance = 0.1f;
+
 	int generation = -1; // Current generation of the world
 	int viewGeneration = 0;
 	int firstStoredGeneration = 0;
@@ -380,6 +387,8 @@ public:
 		camera.target = { 0, 0 };
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;	
+
+		maxMuscles = nodeCount * (nodeCount - 1) / 2;
 	}
 	~World() {
 		{
