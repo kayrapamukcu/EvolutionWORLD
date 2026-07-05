@@ -19,7 +19,8 @@
 // 1 : v1.5.0 (but incompatible with older versions; compression added)
 // 2 : v1.5.2+ history ranges and percentile graph generation offset
 // 3 : sparse saved history generation indices
-constexpr uint64_t savefileVersion = 3;
+// 4 : creature node/muscle count ranges
+constexpr uint64_t savefileVersion = 4;
 
 // Helper functions for reading/writing binary data
 template <typename T>
@@ -211,6 +212,10 @@ struct Savefile {
 	int ticksPerSecond;
 	int secondsPerSimulation;
 	int numOfCreatures;
+	int minNodes;
+	int maxNodes;
+	int minMuscles;
+	int maxMuscles;
 	float mutabilityRange;
 	float mutabilityFactor;
 	Color backgroundColor;
@@ -316,9 +321,10 @@ public:
 	inline static int numOfCreatures = 1000;
 	inline static int gravity = 98;
 
-	inline static int minNodes = 4;
-	inline static int maxNodes = 10;
+	inline static int minNodes = 3;
+	inline static int maxNodes = 15;
 
+	inline static int minMuscles = minNodes;
 	inline static int maxMuscles = maxNodes * (maxNodes - 1) / 2;
 	inline static float structuralMutationChance = 0.1f;
 
@@ -348,6 +354,10 @@ public:
 		ticksPerSecond = 100;
 		secondsPerSimulation = 15;
 		numOfCreatures = 1000;
+		minNodes = 4;
+		maxNodes = 10;
+		minMuscles = minNodes;
+		maxMuscles = maxNodes * (maxNodes - 1) / 2;
 		mutabilityRange = 1.0f;
 		mutabilityFactor = 1.0f;
 		drawSpeedMult = 1.6666666f;
@@ -365,7 +375,7 @@ public:
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;
 	}
-	World(const std::string& n, const std::string& s, int grav, int nc, int sps, int mr, int mf, Color bc, Color gc) :
+	World(const std::string& n, const std::string& s, int grav, int nc, int sps, int mr, int mf, int minNodeCount, int maxNodeCount, int minMuscleCount, int maxMuscleCount, Color bc, Color gc) :
 		backgroundColor(bc),
 		groundColor(gc)
 	{
@@ -373,6 +383,10 @@ public:
 		worldSeed = returnRandomWorldSeed(s); // Convert hex string to unsigned long long
 		secondsPerSimulation = sps;
 		numOfCreatures = nc;
+		minNodes = std::clamp(minNodeCount, 3, 15);
+		maxNodes = std::clamp(maxNodeCount, minNodes, 15);
+		minMuscles = std::clamp(minMuscleCount, minNodes, minNodes * (minNodes - 1) / 2);
+		maxMuscles = std::clamp(maxMuscleCount, minMuscles, maxNodes * (maxNodes - 1) / 2);
 		mutabilityRange = (float)mr / 100;
 		mutabilityFactor = (float)mf / 100;
 		drawSpeedMult = 1.6666666f;
@@ -388,7 +402,6 @@ public:
 		camera.rotation = 0.0f;
 		camera.zoom = 1.0f;	
 
-		maxMuscles = nodeCount * (nodeCount - 1) / 2;
 	}
 	~World() {
 		{

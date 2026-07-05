@@ -263,6 +263,12 @@ int main() {
 	int saveStartGeneration = 0;
 	int saveEndGeneration = 0;
 	int activeSaveRangeHandle = -1;
+	int createMinNodes = 3;
+	int createMaxNodes = 15;
+	int createMinMuscles = createMinNodes;
+	int createMaxMuscles = createMaxNodes * (createMaxNodes - 1) / 2;
+	int activeCreateRangeSlider = -1;
+	int activeCreateRangeHandle = -1;
 	bool saveIncludeGraph = true;
 	bool confirmLeaveWorld = false;
 	float watchTime = 0.0f;
@@ -298,6 +304,65 @@ int main() {
 			DrawCircleV(dotPosition, radius, i == activeDot ? RED : Fade(RED, 0.45f));
 		}
 	};
+
+	auto drawRangeSlider = [](const std::string& label, float x, float y, float width, float height, int minValue, int maxValue, int& selectedMin, int& selectedMax, int& activeSlider, int& activeHandle, int sliderId, bool enabled = true) {
+		selectedMin = std::clamp(selectedMin, minValue, maxValue);
+		selectedMax = std::clamp(selectedMax, selectedMin, maxValue);
+
+		Rectangle rangeRect = DrawRectUI(x, y, width, height, DARKGRAY, UIAnchor::Center);
+		DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2.0f);
+
+		float nubWidth = 10.0f * UIScale();
+		float trackStart = rangeRect.x + nubWidth;
+		float trackEnd = rangeRect.x + rangeRect.width - nubWidth;
+		int valueRange = std::max(1, maxValue - minValue);
+		auto valueToX = [&](int value) {
+			float t = (float)(value - minValue) / valueRange;
+			return trackStart + t * (trackEnd - trackStart);
+			};
+		auto xToValue = [&](float xValue) {
+			float t = std::clamp((xValue - trackStart) / std::max(1.0f, trackEnd - trackStart), 0.0f, 1.0f);
+			return minValue + (int)(t * valueRange + 0.5f);
+			};
+
+		float startX = valueToX(selectedMin);
+		float endX = valueToX(selectedMax);
+		float rangeBarY = rangeRect.y + 8 * UIScale();
+		float rangeBarHeight = rangeRect.height - 16 * UIScale();
+
+		DrawRectangle((int)startX, (int)rangeBarY, (int)std::max(1.0f, endX - startX), (int)rangeBarHeight, RED);
+		DrawRectangle((int)(startX - nubWidth * 0.5f), (int)(rangeRect.y + 4 * UIScale()), (int)nubWidth, (int)(rangeRect.height - 8 * UIScale()), LIGHTGRAY);
+		DrawRectangle((int)(endX - nubWidth * 0.5f), (int)(rangeRect.y + 4 * UIScale()), (int)nubWidth, (int)(rangeRect.height - 8 * UIScale()), LIGHTGRAY);
+		DrawTextUI(std::format("{}: {} - {}", label, selectedMin, selectedMax), x, y, 1.0f, WHITE, UIAnchor::Center);
+
+		if (!enabled) {
+			DrawRectUI(x, y, width, height, Fade(LIGHTGRAY, 0.65f), UIAnchor::Center);
+			DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2.0f);
+			DrawTextUI(std::format("{}: {} - {}", label, selectedMin, selectedMax), x, y, 1.0f, GRAY, UIAnchor::Center);
+			return false;
+		}
+
+		if (CheckCollisionPointRec(GetMousePosition(), rangeRect) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+			float mouseX = GetMousePosition().x;
+			activeSlider = sliderId;
+			activeHandle = std::abs(mouseX - startX) <= std::abs(mouseX - endX) ? 0 : 1;
+		}
+		if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && activeSlider == sliderId) {
+			activeSlider = -1;
+			activeHandle = -1;
+		}
+		if (activeSlider == sliderId && activeHandle >= 0) {
+			int selectedValue = xToValue(GetMousePosition().x);
+			if (activeHandle == 0) {
+				selectedMin = std::clamp(selectedValue, minValue, selectedMax);
+			}
+			else {
+				selectedMax = std::clamp(selectedValue, selectedMin, maxValue);
+			}
+			return true;
+		}
+		return false;
+		};
 
 	float frameTime = GetFrameTime();
 	float currentTime = GetTime();
@@ -382,6 +447,12 @@ int main() {
 			createMenuUIElements.push_back(std::make_unique<Slider>(203, 825, 340, 350, 48, "Mutability Range", 1, 200, 100));
 			createMenuUIElements.push_back(std::make_unique<Slider>(204, 825, 420, 350, 48, "Mutability Factor", 1, 500, 100));
 			createMenuUIElements.push_back(std::make_unique<Slider>(205, 825, 500, 350, 48, "Gravity", 20, 1000, gravityConst));
+			createMinNodes = 3;
+			createMaxNodes = 15;
+			createMinMuscles = createMinNodes;
+			createMaxMuscles = createMaxNodes * (createMaxNodes - 1) / 2;
+			activeCreateRangeSlider = -1;
+			activeCreateRangeHandle = -1;
 
 			// ingame UI elements setup
 
@@ -559,6 +630,10 @@ int main() {
 						int newSecondsPerSimulation = std::stoi(createMenuUIElements[7]->getContent());
 						int newMutabilityRange = std::stoi(createMenuUIElements[8]->getContent());
 						int newMutabilityFactor = std::stoi(createMenuUIElements[9]->getContent());
+						int newMinNodes = createMinNodes;
+						int newMaxNodes = createMaxNodes;
+						int newMinMuscles = createMinMuscles;
+						int newMaxMuscles = createMaxMuscles;
 
 						createInProgress = true;
 						createFuture = std::async(std::launch::async, [=] {
@@ -570,6 +645,10 @@ int main() {
 								newSecondsPerSimulation,
 								newMutabilityRange,
 								newMutabilityFactor,
+								newMinNodes,
+								newMaxNodes,
+								newMinMuscles,
+								newMaxMuscles,
 								backgroundColor,
 								groundColor
 							);
@@ -610,6 +689,18 @@ int main() {
 
 			}
 
+			int previousMinNodes = createMinNodes;
+			int previousMaxNodes = createMaxNodes;
+			bool nodeRangeChanged = drawRangeSlider("Node Count", absoluteWidth / 2, 558, 350, 48, 3, 15, createMinNodes, createMaxNodes, activeCreateRangeSlider, activeCreateRangeHandle, 0, !createInProgress);
+			if (nodeRangeChanged || previousMinNodes != createMinNodes || previousMaxNodes != createMaxNodes) {
+				createMinMuscles = createMinNodes;
+				createMaxMuscles = createMaxNodes * (createMaxNodes - 1) / 2;
+			}
+
+			const int muscleSliderMin = createMinNodes;
+			const int muscleSliderMax = createMaxNodes * (createMaxNodes - 1) / 2;
+			drawRangeSlider("Muscle Count", absoluteWidth / 2, 615, 350, 48, muscleSliderMin, muscleSliderMax, createMinMuscles, createMaxMuscles, activeCreateRangeSlider, activeCreateRangeHandle, 1, !createInProgress);
+
 			// Draw preview world
 			DrawTextUI("Preview", absoluteWidth / 2, 240, 1.2f, BLACK, UIAnchor::Center);
 			previewWorld.drawtick(absoluteWidth / 2, 395, 240, 240);
@@ -625,6 +716,10 @@ int main() {
 			std::string worldNameSnapshot;
 			uint32_t worldSeedSnapshot = 0;
 			int numCreaturesSnapshot = 0;
+			int minNodesSnapshot = 0;
+			int maxNodesSnapshot = 0;
+			int minMusclesSnapshot = 0;
+			int maxMusclesSnapshot = 0;
 			int secondsPerSimulationSnapshot = 0;
 			float mutabilityRangeSnapshot = 0.0f;
 			float mutabilityFactorSnapshot = 0.0f;
@@ -641,6 +736,10 @@ int main() {
 				worldNameSnapshot = world->worldName;
 				worldSeedSnapshot = world->worldSeed;
 				numCreaturesSnapshot = world->numOfCreatures;
+				minNodesSnapshot = world->minNodes;
+				maxNodesSnapshot = world->maxNodes;
+				minMusclesSnapshot = world->minMuscles;
+				maxMusclesSnapshot = world->maxMuscles;
 				secondsPerSimulationSnapshot = world->secondsPerSimulation;
 				mutabilityRangeSnapshot = world->mutabilityRange;
 				mutabilityFactorSnapshot = world->mutabilityFactor;
@@ -667,13 +766,15 @@ int main() {
 			
 			DrawTextUI("Current generation: " + std::to_string(currentGenerationSnapshot), 110, 234, 1.0f, BLACK);
 			DrawTextUI("Total stored generations: " + std::to_string(storedHistoryGenerationsSnapshot.size()), 110, 272, 1.0f, BLACK);
+			DrawTextUI(std::format("Best fitness: {:.2f} meters", bestFitnessMeters), 110, 310, 1.0f, BLACK);
 			
-			DrawTextUI(std::format("Best fitness: {:.2f} meters", bestFitnessMeters), absoluteWidth / 2, 330, 1.0f, BLACK, UIAnchor::Center);
-			DrawTextUI("Seconds per sim: " + std::to_string(secondsPerSimulationSnapshot), 610, 158, 1.0f, BLACK);
-			DrawTextUI(std::format("Mutability range: {:.2f}", mutabilityRangeSnapshot), 610, 196, 1.0f, BLACK);
-			DrawTextUI(std::format("Mutability factor: {:.2f}", mutabilityFactorSnapshot), 610, 234, 1.0f, BLACK);
-			DrawTextUI("Gravity: " + std::to_string(gravitySnapshot), 610, 272, 1.0f, BLACK);
-			DrawTextUI("Amount of creatures: " + std::to_string(numCreaturesSnapshot), 610, 120, 1.0f, BLACK);
+			DrawTextUI("Seconds per sim: " + std::to_string(secondsPerSimulationSnapshot), 610, 120, 1.0f, BLACK);
+			DrawTextUI(std::format("Mutability range: {:.2f}", mutabilityRangeSnapshot), 610, 158, 1.0f, BLACK);
+			DrawTextUI(std::format("Mutability factor: {:.2f}", mutabilityFactorSnapshot), 610, 196, 1.0f, BLACK);
+			DrawTextUI("Gravity: " + std::to_string(gravitySnapshot), 610, 234, 1.0f, BLACK);
+			DrawTextUI("Amount of creatures: " + std::to_string(numCreaturesSnapshot), 110, 196, 1.0f, BLACK);
+			DrawTextUI(std::format("Min node/muscle: {} / {}", minNodesSnapshot, minMusclesSnapshot), 610, 272, 1.0f, BLACK);
+			DrawTextUI(std::format("Max node/muscle: {} / {}", maxNodesSnapshot, maxMusclesSnapshot), 610, 310, 1.0f, BLACK);
 
 			DrawTextUI("History generations to save", absoluteWidth / 2, 400, 1.0f, BLACK, UIAnchor::Center);
 			Rectangle rangeRect = DrawRectUI(absoluteWidth / 2, 454, 840, 64, DARKGRAY, UIAnchor::Center);

@@ -435,6 +435,10 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
     int ticksPerSecondSnapshot;
     int secondsPerSimulationSnapshot;
     int numOfCreaturesSnapshot;
+    int minNodesSnapshot;
+    int maxNodesSnapshot;
+    int minMusclesSnapshot;
+    int maxMusclesSnapshot;
     float mutabilityRangeSnapshot;
     float mutabilityFactorSnapshot;
     Color backgroundColorSnapshot;
@@ -459,6 +463,10 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
         ticksPerSecondSnapshot = ticksPerSecond;
         secondsPerSimulationSnapshot = secondsPerSimulation;
         numOfCreaturesSnapshot = numOfCreatures;
+        minNodesSnapshot = minNodes;
+        maxNodesSnapshot = maxNodes;
+        minMusclesSnapshot = minMuscles;
+        maxMusclesSnapshot = maxMuscles;
         mutabilityRangeSnapshot = mutabilityRange;
         mutabilityFactorSnapshot = mutabilityFactor;
         backgroundColorSnapshot = backgroundColor;
@@ -496,6 +504,10 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
         writeValue(serialized, ticksPerSecondSnapshot);
         writeValue(serialized, secondsPerSimulationSnapshot);
         writeValue(serialized, numOfCreaturesSnapshot);
+        writeValue(serialized, minNodesSnapshot);
+        writeValue(serialized, maxNodesSnapshot);
+        writeValue(serialized, minMusclesSnapshot);
+        writeValue(serialized, maxMusclesSnapshot);
         writeValue(serialized, mutabilityRangeSnapshot);
         writeValue(serialized, mutabilityFactorSnapshot);
         writeValue(serialized, backgroundColorSnapshot);
@@ -585,6 +597,22 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readValue(dataIn, loadedWorld->ticksPerSecond);
         readValue(dataIn, loadedWorld->secondsPerSimulation);
         readValue(dataIn, loadedWorld->numOfCreatures);
+        if (fileVersion >= 4) {
+            readValue(dataIn, loadedWorld->minNodes);
+            readValue(dataIn, loadedWorld->maxNodes);
+            readValue(dataIn, loadedWorld->minMuscles);
+            readValue(dataIn, loadedWorld->maxMuscles);
+        }
+        else {
+            loadedWorld->minNodes = 4;
+            loadedWorld->maxNodes = 10;
+            loadedWorld->minMuscles = loadedWorld->minNodes;
+            loadedWorld->maxMuscles = loadedWorld->maxNodes * (loadedWorld->maxNodes - 1) / 2;
+        }
+        loadedWorld->minNodes = std::clamp(loadedWorld->minNodes, 3, 15);
+        loadedWorld->maxNodes = std::clamp(loadedWorld->maxNodes, loadedWorld->minNodes, 15);
+        loadedWorld->minMuscles = std::clamp(loadedWorld->minMuscles, loadedWorld->minNodes, loadedWorld->maxNodes * (loadedWorld->maxNodes - 1) / 2);
+        loadedWorld->maxMuscles = std::clamp(loadedWorld->maxMuscles, loadedWorld->minMuscles, loadedWorld->maxNodes * (loadedWorld->maxNodes - 1) / 2);
         readValue(dataIn, loadedWorld->mutabilityRange);
         readValue(dataIn, loadedWorld->mutabilityFactor);
         readValue(dataIn, loadedWorld->backgroundColor);

@@ -93,24 +93,26 @@ void Creature::initializeChild(Creature* parent)
     id = idCounter++;
 
     int childNodeCount = parent->nodeCount;
-    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance) {
+    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance * world->mutabilityFactor) {
         const int delta = RNG::biasedLowerInt(1, 5, 0.75f);
         childNodeCount += RNG::randomInt(0, 1) == 0 ? -delta : delta;
     }
 
     childNodeCount = std::clamp(childNodeCount, world->minNodes, world->maxNodes);
 
-    const int minMuscles = childNodeCount; // mandatory ring
-    const int maxMuscles = childNodeCount * (childNodeCount - 1) / 2;
-    const int maxStorableMuscles = std::min(maxMuscles, (int)std::numeric_limits<uint8_t>::max());
+    const int physicalMinMuscles = childNodeCount; // mandatory ring
+    const int physicalMaxMuscles = childNodeCount * (childNodeCount - 1) / 2;
+    const int maxStorableMuscles = std::min(physicalMaxMuscles, (int)std::numeric_limits<uint8_t>::max());
+    const int minMuscles = std::clamp(world->minMuscles, physicalMinMuscles, maxStorableMuscles);
+    const int maxMuscles = std::clamp(world->maxMuscles, minMuscles, maxStorableMuscles);
 
     int childMuscleCount = parent->muscleCount;
-    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance) {
+    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance * world->mutabilityFactor) {
         const int delta = RNG::biasedLowerInt(1, 5, 0.75f);
         childMuscleCount += RNG::randomInt(0, 1) == 0 ? -delta : delta;
     }
 
-    childMuscleCount = std::clamp(childMuscleCount, minMuscles, maxStorableMuscles);
+    childMuscleCount = std::clamp(childMuscleCount, minMuscles, maxMuscles);
 
     nodeCount = (uint8_t)childNodeCount;
     muscleCount = (uint8_t)childMuscleCount;
@@ -335,7 +337,10 @@ void Creature::initialize()
 	id = idCounter++;
 
 	nodeCount = RNG::biasedLowerInt(world->minNodes, world->maxNodes, 0.4f);
-	muscleCount = RNG::biasedLowerInt(nodeCount, nodeCount * (nodeCount - 1) / 2, 0.25f);
+	int nodeMaxMuscles = nodeCount * (nodeCount - 1) / 2;
+	int minMuscles = std::clamp(world->minMuscles, (int)nodeCount, nodeMaxMuscles);
+	int maxMuscles = std::clamp(world->maxMuscles, minMuscles, nodeMaxMuscles);
+	muscleCount = RNG::biasedLowerInt(minMuscles, maxMuscles, 0.25f);
 
 	nodes = std::make_unique<Node[]>(nodeCount);
 	muscles = std::make_unique<Muscle[]>(muscleCount);
