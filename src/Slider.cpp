@@ -9,14 +9,14 @@ void Slider::draw()
 
 	float sliderStart = drawRect.x + (NUB_WIDTH * UIScale()) * 0.5f;
 	float sliderEnd = drawRect.x + drawRect.width - (NUB_WIDTH * UIScale()) * 0.5f;
-	curVal = std::clamp(curVal, minVal, maxVal);
+	int drawValue = std::clamp(curVal, minVal, maxVal);
 	const int valueRange = maxVal - minVal;
 
 	if (valueRange <= 0) {
 		sliderPos = sliderStart;
 	}
 	else {
-		sliderPos = sliderStart + static_cast<float>(curVal - minVal) / valueRange * (sliderEnd - sliderStart);
+		sliderPos = sliderStart + static_cast<float>(drawValue - minVal) / valueRange * (sliderEnd - sliderStart);
 	}
 
 	DrawRectangle(

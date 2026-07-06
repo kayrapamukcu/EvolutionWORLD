@@ -297,6 +297,12 @@ int main() {
 	int createMaxMuscles = createMaxNodes * (createMaxNodes - 1) / 2;
 	int activeCreateRangeSlider = -1;
 	int activeCreateRangeHandle = -1;
+	bool createManualValueActive = false;
+	int createManualTargetKind = 0; // 1: normal slider, 2: range slider handle
+	int createManualTargetId = -1;
+	int createManualRangeHandle = -1;
+	std::string createManualValueText;
+	std::string createManualValueLabel;
 	bool saveIncludeGraph = true;
 	bool saveIncludeSpeciesGraph = true;
 	bool confirmLeaveWorld = false;
@@ -336,12 +342,94 @@ int main() {
 		}
 	};
 
-	auto drawRangeSlider = [](const std::string& label, float x, float y, float width, float height, int minValue, int maxValue, int& selectedMin, int& selectedMax, int& activeSlider, int& activeHandle, int sliderId, bool enabled = true) {
+	auto beginCreateManualValueEdit = [&](const std::string& label, int currentValue, int targetKind, int targetId, int rangeHandle) {
+		createManualValueActive = true;
+		createManualTargetKind = targetKind;
+		createManualTargetId = targetId;
+		createManualRangeHandle = rangeHandle;
+		createManualValueText = std::to_string(currentValue);
+		createManualValueLabel = label;
+		activeCreateRangeSlider = -1;
+		activeCreateRangeHandle = -1;
+		};
+
+	auto drawCreateManualValueEditor = [&]() {
+		if (!createManualValueActive) {
+			return;
+		}
+
+		DrawRectUI(absoluteWidth / 2, absoluteHeight / 2, 440, 170, Fade(WHITE, 0.96f), UIAnchor::Center);
+		DrawRectUI(absoluteWidth / 2, absoluteHeight / 2, 440, 170, BLACK, UIAnchor::Center, 2.0f);
+		DrawTextUI(createManualValueLabel, absoluteWidth / 2, absoluteHeight / 2 - 52, 1.0f, BLACK, UIAnchor::Center);
+		DrawRectUI(absoluteWidth / 2, absoluteHeight / 2, 300, 52, WHITE, UIAnchor::Center);
+		DrawRectUI(absoluteWidth / 2, absoluteHeight / 2, 300, 52, RED, UIAnchor::Center, 2.0f);
+		DrawTextUI(createManualValueText.empty() ? "_" : createManualValueText, absoluteWidth / 2, absoluteHeight / 2, 1.1f, BLACK, UIAnchor::Center);
+		DrawTextUI("Enter to apply, Esc to cancel", absoluteWidth / 2, absoluteHeight / 2 + 54, 0.75f, DARKGRAY, UIAnchor::Center);
+
+		int key = GetCharPressed();
+		while (key > 0) {
+			if ((key >= '0' && key <= '9') || (key == '-' && createManualValueText.empty())) {
+				createManualValueText.push_back((char)key);
+			}
+			key = GetCharPressed();
+		}
+
+		if (IsKeyPressed(KEY_BACKSPACE) && !createManualValueText.empty()) {
+			createManualValueText.pop_back();
+		}
+		if (IsKeyPressed(KEY_ESCAPE)) {
+			createManualValueActive = false;
+		}
+		if (IsKeyPressed(KEY_ENTER)) {
+			try {
+				int newValue = std::stoi(createManualValueText);
+				if (createManualTargetKind == 1) {
+					for (auto& element : createMenuUIElements) {
+						if (element->elementID == createManualTargetId) {
+							if (auto slider = dynamic_cast<Slider*>(element.get())) {
+								slider->curVal = newValue;
+							}
+							break;
+						}
+					}
+				}
+				else if (createManualTargetKind == 2) {
+					if (createManualTargetId == 0) {
+						if (createManualRangeHandle == 0) {
+							createMinNodes = newValue;
+							createMaxNodes = std::max(createMaxNodes, createMinNodes);
+						}
+						else {
+							createMaxNodes = newValue;
+							createMinNodes = std::min(createMinNodes, createMaxNodes);
+						}
+						createMinMuscles = createMinNodes;
+						createMaxMuscles = createMaxNodes * (createMaxNodes - 1) / 2;
+					}
+					else if (createManualTargetId == 1) {
+						if (createManualRangeHandle == 0) {
+							createMinMuscles = newValue;
+							createMaxMuscles = std::max(createMaxMuscles, createMinMuscles);
+						}
+						else {
+							createMaxMuscles = newValue;
+							createMinMuscles = std::min(createMinMuscles, createMaxMuscles);
+						}
+					}
+				}
+				createManualValueActive = false;
+			}
+			catch (const std::exception&) {
+				PushNotice("Invalid number", 2.0f);
+			}
+		}
+		};
+
+	auto drawRangeSlider = [&](const std::string& label, float x, float y, float width, float height, int minValue, int maxValue, int& selectedMin, int& selectedMax, int& activeSlider, int& activeHandle, int sliderId, bool enabled = true) {
 		static bool precise = false;
 		static double lastAdjustmentTime = 0.0;
 
-		selectedMin = std::clamp(selectedMin, minValue, maxValue);
-		selectedMax = std::clamp(selectedMax, selectedMin, maxValue);
+		selectedMax = std::max(selectedMax, selectedMin);
 
 		Rectangle rangeRect = DrawRectUI(x, y, width, height, DARKGRAY, UIAnchor::Center);
 		DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2.0f);
@@ -349,14 +437,16 @@ int main() {
 		float nubWidth = 10.0f * UIScale();
 		float trackStart = rangeRect.x + nubWidth;
 		float trackEnd = rangeRect.x + rangeRect.width - nubWidth;
-		int valueRange = std::max(1, maxValue - minValue);
+		int trackMinValue = std::min(minValue, maxValue);
+		int trackMaxValue = std::max(minValue, maxValue);
+		int valueRange = std::max(1, trackMaxValue - trackMinValue);
 		auto valueToX = [&](int value) {
-			float t = (float)(value - minValue) / valueRange;
+			float t = (float)(std::clamp(value, trackMinValue, trackMaxValue) - trackMinValue) / valueRange;
 			return trackStart + t * (trackEnd - trackStart);
 			};
 		auto xToValue = [&](float xValue) {
 			float t = std::clamp((xValue - trackStart) / std::max(1.0f, trackEnd - trackStart), 0.0f, 1.0f);
-			return minValue + (int)(t * valueRange + 0.5f);
+			return trackMinValue + (int)(t * valueRange + 0.5f);
 			};
 
 		float startX = valueToX(selectedMin);
@@ -383,12 +473,19 @@ int main() {
 
 		auto chooseHandle = [&](float mouseX) {
 			if (selectedMin == selectedMax) {
-				if (selectedMin <= minValue) return 1;
-				if (selectedMax >= maxValue) return 0;
+				if (selectedMin <= trackMinValue) return 1;
+				if (selectedMax >= trackMaxValue) return 0;
 				return mouseX < startX ? 0 : 1;
 			}
 			return std::abs(mouseX - startX) <= std::abs(mouseX - endX) ? 0 : 1;
 			};
+
+		if (CheckCollisionPointRec(GetMousePosition(), rangeRect) && IsMouseButtonPressed(MOUSE_MIDDLE_BUTTON)) {
+			float mouseX = GetMousePosition().x;
+			int handle = chooseHandle(mouseX);
+			beginCreateManualValueEdit(label + (handle == 0 ? " Min" : " Max"), handle == 0 ? selectedMin : selectedMax, 2, sliderId, handle);
+			return false;
+		}
 
 		if (CheckCollisionPointRec(GetMousePosition(), rangeRect) && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))) {
 			float mouseX = GetMousePosition().x;
@@ -414,7 +511,7 @@ int main() {
 				float handleX = activeHandle == 0 ? startX : endX;
 				if (activeHandle == 0) {
 					if (mouseX < handleX) {
-						selectedMin = std::max(minValue, selectedMin - 1);
+						selectedMin = std::max(trackMinValue, selectedMin - 1);
 					}
 					else if (mouseX > handleX) {
 						selectedMin = std::min(selectedMax, selectedMin + 1);
@@ -425,7 +522,7 @@ int main() {
 						selectedMax = std::max(selectedMin, selectedMax - 1);
 					}
 					else if (mouseX > handleX) {
-						selectedMax = std::min(maxValue, selectedMax + 1);
+						selectedMax = std::min(trackMaxValue, selectedMax + 1);
 					}
 				}
 				lastAdjustmentTime = GetTime();
@@ -433,10 +530,10 @@ int main() {
 			else {
 				int selectedValue = xToValue(GetMousePosition().x);
 				if (activeHandle == 0) {
-					selectedMin = std::clamp(selectedValue, minValue, selectedMax);
+					selectedMin = std::clamp(selectedValue, trackMinValue, selectedMax);
 				}
 				else {
-					selectedMax = std::clamp(selectedValue, selectedMin, maxValue);
+					selectedMax = std::clamp(selectedValue, selectedMin, trackMaxValue);
 				}
 			}
 			return previousMin != selectedMin || previousMax != selectedMax;
@@ -671,10 +768,19 @@ int main() {
 			DrawTextUI("Create WORLD", absoluteWidth / 2, 90, 2, BLACK, UIAnchor::Center);
 
 			for (int i = 0; i < createMenuUIElements.size(); i++) {
-				createMenuUIElements[i]->tick();
+				if (!createManualValueActive) {
+					createMenuUIElements[i]->tick();
+				}
 				createMenuUIElements[i]->draw();
+				if (!createManualValueActive) {
+					if (auto slider = dynamic_cast<Slider*>(createMenuUIElements[i].get())) {
+						if (CheckCollisionPointRec(GetMousePosition(), slider->drawRect) && IsMouseButtonPressed(MOUSE_MIDDLE_BUTTON)) {
+							beginCreateManualValueEdit(slider->name, slider->curVal, 1, slider->elementID, -1);
+						}
+					}
+				}
 
-				if (createMenuUIElements[i]->active && !createInProgress) {
+				if (createMenuUIElements[i]->active && !createInProgress && !createManualValueActive) {
 					switch (createMenuUIElements[i]->elementID) {
 					case 0: // Create World
 					{
@@ -770,7 +876,7 @@ int main() {
 
 			int previousMinNodes = createMinNodes;
 			int previousMaxNodes = createMaxNodes;
-			bool nodeRangeChanged = drawRangeSlider("Node Count", absoluteWidth / 2, 558, 350, 48, 3, 15, createMinNodes, createMaxNodes, activeCreateRangeSlider, activeCreateRangeHandle, 0, !createInProgress);
+			bool nodeRangeChanged = drawRangeSlider("Node Count", absoluteWidth / 2, 558, 350, 48, 3, 15, createMinNodes, createMaxNodes, activeCreateRangeSlider, activeCreateRangeHandle, 0, !createInProgress && !createManualValueActive);
 			if (nodeRangeChanged || previousMinNodes != createMinNodes || previousMaxNodes != createMaxNodes) {
 				createMinMuscles = createMinNodes;
 				createMaxMuscles = createMaxNodes * (createMaxNodes - 1) / 2;
@@ -778,7 +884,7 @@ int main() {
 
 			const int muscleSliderMin = createMinNodes;
 			const int muscleSliderMax = createMaxNodes * (createMaxNodes - 1) / 2;
-			drawRangeSlider("Muscle Count", absoluteWidth / 2, 615, 350, 48, muscleSliderMin, muscleSliderMax, createMinMuscles, createMaxMuscles, activeCreateRangeSlider, activeCreateRangeHandle, 1, !createInProgress);
+			drawRangeSlider("Muscle Count", absoluteWidth / 2, 615, 350, 48, muscleSliderMin, muscleSliderMax, createMinMuscles, createMaxMuscles, activeCreateRangeSlider, activeCreateRangeHandle, 1, !createInProgress && !createManualValueActive);
 
 			// Draw preview world
 			DrawTextUI("Preview", absoluteWidth / 2, 240, 1.2f, BLACK, UIAnchor::Center);
@@ -787,6 +893,7 @@ int main() {
 			if (createInProgress) {
 				drawBusyPanel("Loading world...", 678);
 			}
+			drawCreateManualValueEditor();
 			break;
 		}
 		case STATE_SAVE: {
