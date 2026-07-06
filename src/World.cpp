@@ -138,7 +138,7 @@ bool World::HasHistoryDataInRange(int startGeneration, int endGeneration) const
     return it != storedHistoryGenerations.end() && *it <= endGeneration;
 }
 
-Creature* World::DrawWithCreatureCentered(int index, int generation) {
+Creature* World::DrawWithCreatureCentered(int index, int generation, float playbackSpeed, bool paused) {
     
 	Creature* creature;
     int storedGenerationIndex = GetHistoryIndexForGeneration(generation);
@@ -177,7 +177,9 @@ Creature* World::DrawWithCreatureCentered(int index, int generation) {
 	}
     creature->draw();
     EndMode2D();
-	accumulatedTime += drawSpeedMult;
+    if (!paused) {
+	    accumulatedTime += GetFrameTime() * ticksPerSecond * playbackSpeed;
+    }
     while (accumulatedTime > 1) {
         creature->tick();
         accumulatedTime--;
@@ -185,7 +187,7 @@ Creature* World::DrawWithCreatureCentered(int index, int generation) {
 	return creature;
 }
 
-Creature* World::DrawCreatureCentered(Creature& creature) {
+Creature* World::DrawCreatureCentered(Creature& creature, float playbackSpeed, bool paused) {
     constexpr float groundTopRatio = 0.75f;
     DrawRectUI(0, absoluteHeight * groundTopRatio, absoluteWidth, absoluteHeight * (1.0f - groundTopRatio), groundColor);
 
@@ -208,7 +210,9 @@ Creature* World::DrawCreatureCentered(Creature& creature) {
 
     creature.draw();
     EndMode2D();
-    accumulatedTime += drawSpeedMult;
+    if (!paused) {
+        accumulatedTime += GetFrameTime() * ticksPerSecond * playbackSpeed;
+    }
     while (accumulatedTime > 1) {
         creature.tick();
         accumulatedTime--;
@@ -605,16 +609,17 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
 
         uint64_t fileVersion;
         readValue(dataIn, fileVersion);
+        if (fileVersion != savefileVersion) {
+            std::cerr << "Unsupported savefile version: " << fileVersion << std::endl;
+            PushNotice("Unsupported savefile version " + std::to_string(fileVersion), 5.0f);
+            return nullptr;
+        }
+
         std::string worldName;
         uint32_t worldSeed;
         readString(dataIn, worldName);
         readValue(dataIn, worldSeed);
 		std::cout << "Loading world: " << worldName << " with seed " << worldSeed << std::endl;
-        if (fileVersion < 1 || fileVersion > savefileVersion) {
-            std::cerr << "Unsupported savefile version: " << fileVersion << std::endl;
-            PushNotice("Unsupported savefile version " + std::to_string(fileVersion), 5.0f);
-            return nullptr;
-        }
 
         auto loadedWorld = std::make_unique<World>(false);
 		loadedWorld->worldName = worldName;
@@ -623,18 +628,10 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readValue(dataIn, loadedWorld->ticksPerSecond);
         readValue(dataIn, loadedWorld->secondsPerSimulation);
         readValue(dataIn, loadedWorld->numOfCreatures);
-        if (fileVersion >= 4) {
-            readValue(dataIn, loadedWorld->minNodes);
-            readValue(dataIn, loadedWorld->maxNodes);
-            readValue(dataIn, loadedWorld->minMuscles);
-            readValue(dataIn, loadedWorld->maxMuscles);
-        }
-        else {
-            loadedWorld->minNodes = 4;
-            loadedWorld->maxNodes = 10;
-            loadedWorld->minMuscles = loadedWorld->minNodes;
-            loadedWorld->maxMuscles = loadedWorld->maxNodes * (loadedWorld->maxNodes - 1) / 2;
-        }
+        readValue(dataIn, loadedWorld->minNodes);
+        readValue(dataIn, loadedWorld->maxNodes);
+        readValue(dataIn, loadedWorld->minMuscles);
+        readValue(dataIn, loadedWorld->maxMuscles);
         loadedWorld->minNodes = std::clamp(loadedWorld->minNodes, 3, 15);
         loadedWorld->maxNodes = std::clamp(loadedWorld->maxNodes, loadedWorld->minNodes, 15);
         loadedWorld->minMuscles = std::clamp(loadedWorld->minMuscles, loadedWorld->minNodes, loadedWorld->maxNodes * (loadedWorld->maxNodes - 1) / 2);
@@ -644,15 +641,8 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readValue(dataIn, loadedWorld->backgroundColor);
         readValue(dataIn, loadedWorld->groundColor);
         readValue(dataIn, loadedWorld->generation);
-        if (fileVersion >= 2) {
-            readValue(dataIn, loadedWorld->firstStoredGeneration);
-        }
-        else {
-            loadedWorld->firstStoredGeneration = 0;
-        }
-        if (fileVersion >= 3) {
-            readVector(dataIn, loadedWorld->storedHistoryGenerations);
-        }
+        readValue(dataIn, loadedWorld->firstStoredGeneration);
+        readVector(dataIn, loadedWorld->storedHistoryGenerations);
         
         loadedWorld->creatures = std::make_unique<Creature[]>(loadedWorld->numOfCreatures);
         std::vector<Creature> vec;
@@ -663,16 +653,14 @@ std::unique_ptr<World> World::LoadFromDialog(std::atomic<bool>* workStarted)
         readCreatureVector(dataIn, loadedWorld->worstGenerationalCreatures);
         readCreatureVector(dataIn, loadedWorld->averageGenerationalCreatures);
         readCreatureVector(dataIn, loadedWorld->bestGenerationalCreatures);
-        if (fileVersion < 3 || loadedWorld->storedHistoryGenerations.size() != loadedWorld->worstGenerationalCreatures.size()) {
+        if (loadedWorld->storedHistoryGenerations.size() != loadedWorld->worstGenerationalCreatures.size()) {
             loadedWorld->storedHistoryGenerations = CreateContiguousGenerations(loadedWorld->firstStoredGeneration, (int)loadedWorld->worstGenerationalCreatures.size());
         }
         if (!loadedWorld->storedHistoryGenerations.empty()) {
             loadedWorld->firstStoredGeneration = loadedWorld->storedHistoryGenerations.front();
         }
-        readPercentileGraph(dataIn, loadedWorld->percentileGraph, fileVersion);
-        if (fileVersion >= 5) {
-            readSpeciesGraph(dataIn, loadedWorld->speciesGraph);
-        }
+        readPercentileGraph(dataIn, loadedWorld->percentileGraph);
+        readSpeciesGraph(dataIn, loadedWorld->speciesGraph);
         loadedWorld->viewGeneration = std::clamp(
             loadedWorld->generation,
             loadedWorld->GetFirstHistoryGeneration(),

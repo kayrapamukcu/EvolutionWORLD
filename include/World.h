@@ -184,7 +184,7 @@ inline void writeSpeciesGraph(std::ostream& out, const SpeciesGraph& g) {
 		writeVector(out, generationData);
 	}
 }
-inline void readPercentileGraph(std::istream& in, PercentileGraph& g, uint64_t fileVersion = savefileVersion) {
+inline void readPercentileGraph(std::istream& in, PercentileGraph& g) {
 	readValue(in, g.x);
 	readValue(in, g.y);
 	readValue(in, g.width);
@@ -203,21 +203,8 @@ inline void readPercentileGraph(std::istream& in, PercentileGraph& g, uint64_t f
 	}
 
 	readValue(in, g.backgroundColor);
-	if (fileVersion >= 2) {
-		readValue(in, g.firstGeneration);
-	}
-	else {
-		g.firstGeneration = 0;
-	}
-	if (fileVersion >= 3) {
-		readVector(in, g.storedGenerations);
-	}
-	else {
-		g.storedGenerations.clear();
-		for (int i = 0; i < (int)g.data[0].size(); ++i) {
-			g.storedGenerations.push_back(g.firstGeneration + i);
-		}
-	}
+	readValue(in, g.firstGeneration);
+	readVector(in, g.storedGenerations);
 
 	g.world = nullptr;
 }
@@ -367,6 +354,7 @@ public:
 	inline static int minMuscles = minNodes;
 	inline static int maxMuscles = maxNodes * (maxNodes - 1) / 2;
 	inline static float structuralMutationChance = 0.1f;
+	inline static float muscleMutationMultiplierWhenNodeMutated = 6.0f;
 
 	int generation = -1; // Current generation of the world
 	int viewGeneration = 0;
@@ -495,8 +483,8 @@ public:
 	void Save(std::atomic<bool>* workStarted = nullptr, int saveStartGeneration = -1, int saveEndGeneration = -1, bool savePercentileGraph = true, bool saveSpeciesGraph = true);
 	static bool Load();
 	static std::unique_ptr<World> LoadFromDialog(std::atomic<bool>* workStarted = nullptr);
-	Creature* DrawWithCreatureCentered(int index, int generation);
-	Creature* DrawCreatureCentered(Creature& creature);
+	Creature* DrawWithCreatureCentered(int index, int generation, float playbackSpeed = 1.0f, bool paused = false);
+	Creature* DrawCreatureCentered(Creature& creature, float playbackSpeed = 1.0f, bool paused = false);
 	Creature* DrawCurrentCreatureCentered(int index);
 	void PrepareNextGeneration();
 	int GetHistoryIndexForGeneration(int generation) const;

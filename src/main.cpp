@@ -23,7 +23,7 @@
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
-const char* versionString = "v2.0.0dev";
+const char* versionString = "v2.0.0";
 
 constexpr int32_t settingsFileMagic = 0x53545745; // EWTS
 constexpr int32_t settingsFileVersion = 1;
@@ -301,6 +301,8 @@ int main() {
 	bool saveIncludeSpeciesGraph = true;
 	bool confirmLeaveWorld = false;
 	float watchTime = 0.0f;
+	float creaturePlaybackSpeed = 1.0f;
+	bool creaturePlaybackPaused = false;
 	bool doGenerationsNonstop = false;
 	float timeForOneGen = 0.0f;
 	double generationStartTime = 0.0;
@@ -335,6 +337,9 @@ int main() {
 	};
 
 	auto drawRangeSlider = [](const std::string& label, float x, float y, float width, float height, int minValue, int maxValue, int& selectedMin, int& selectedMax, int& activeSlider, int& activeHandle, int sliderId, bool enabled = true) {
+		static bool precise = false;
+		static double lastAdjustmentTime = 0.0;
+
 		selectedMin = std::clamp(selectedMin, minValue, maxValue);
 		selectedMax = std::clamp(selectedMax, selectedMin, maxValue);
 
@@ -365,30 +370,76 @@ int main() {
 		DrawTextUI(std::format("{}: {} - {}", label, selectedMin, selectedMax), x, y, 1.0f, WHITE, UIAnchor::Center);
 
 		if (!enabled) {
+			if (activeSlider == sliderId) {
+				activeSlider = -1;
+				activeHandle = -1;
+				precise = false;
+			}
 			DrawRectUI(x, y, width, height, Fade(LIGHTGRAY, 0.65f), UIAnchor::Center);
 			DrawRectUI(x, y, width, height, BLACK, UIAnchor::Center, 2.0f);
 			DrawTextUI(std::format("{}: {} - {}", label, selectedMin, selectedMax), x, y, 1.0f, GRAY, UIAnchor::Center);
 			return false;
 		}
 
-		if (CheckCollisionPointRec(GetMousePosition(), rangeRect) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+		auto chooseHandle = [&](float mouseX) {
+			if (selectedMin == selectedMax) {
+				if (selectedMin <= minValue) return 1;
+				if (selectedMax >= maxValue) return 0;
+				return mouseX < startX ? 0 : 1;
+			}
+			return std::abs(mouseX - startX) <= std::abs(mouseX - endX) ? 0 : 1;
+			};
+
+		if (CheckCollisionPointRec(GetMousePosition(), rangeRect) && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))) {
 			float mouseX = GetMousePosition().x;
 			activeSlider = sliderId;
-			activeHandle = std::abs(mouseX - startX) <= std::abs(mouseX - endX) ? 0 : 1;
+			activeHandle = chooseHandle(mouseX);
+			precise = IsMouseButtonPressed(MOUSE_RIGHT_BUTTON);
+			lastAdjustmentTime = 0.0;
 		}
-		if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && activeSlider == sliderId) {
+		if (activeSlider == sliderId && ((!precise && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || (precise && IsMouseButtonReleased(MOUSE_RIGHT_BUTTON)))) {
 			activeSlider = -1;
 			activeHandle = -1;
+			precise = false;
 		}
 		if (activeSlider == sliderId && activeHandle >= 0) {
-			int selectedValue = xToValue(GetMousePosition().x);
-			if (activeHandle == 0) {
-				selectedMin = std::clamp(selectedValue, minValue, selectedMax);
+			int previousMin = selectedMin;
+			int previousMax = selectedMax;
+			if (precise) {
+				if (GetTime() - lastAdjustmentTime < 0.1) {
+					return false;
+				}
+
+				float mouseX = GetMousePosition().x;
+				float handleX = activeHandle == 0 ? startX : endX;
+				if (activeHandle == 0) {
+					if (mouseX < handleX) {
+						selectedMin = std::max(minValue, selectedMin - 1);
+					}
+					else if (mouseX > handleX) {
+						selectedMin = std::min(selectedMax, selectedMin + 1);
+					}
+				}
+				else {
+					if (mouseX < handleX) {
+						selectedMax = std::max(selectedMin, selectedMax - 1);
+					}
+					else if (mouseX > handleX) {
+						selectedMax = std::min(maxValue, selectedMax + 1);
+					}
+				}
+				lastAdjustmentTime = GetTime();
 			}
 			else {
-				selectedMax = std::clamp(selectedValue, selectedMin, maxValue);
+				int selectedValue = xToValue(GetMousePosition().x);
+				if (activeHandle == 0) {
+					selectedMin = std::clamp(selectedValue, minValue, selectedMax);
+				}
+				else {
+					selectedMax = std::clamp(selectedValue, selectedMin, maxValue);
+				}
 			}
-			return true;
+			return previousMin != selectedMin || previousMax != selectedMax;
 		}
 		return false;
 		};
@@ -1059,6 +1110,10 @@ int main() {
 					case 6: // See Best Creature
 						creatureIndexToBeDrawn = 2;
 						drawCreatureFromCurrentPopulation = false;
+						creaturePlaybackSpeed = 1.0f;
+						creaturePlaybackPaused = false;
+						watchTime = 0.0f;
+						world->accumulatedTime = 0.0f;
 						currentState = STATE_DRAW_CREATURE;
 						break;
 					case 200: // View Generation Slider
@@ -1128,6 +1183,7 @@ int main() {
 				if (confirmLeaveButton.active) {
 					confirmLeaveWorld = false;
 					ClearNotices();
+					ClearGradientTextCache();
 					currentState = STATE_MENU_INIT;
 				}
 				else if (cancelLeaveButton.active) {
@@ -1221,6 +1277,9 @@ int main() {
 						selectedCurrentCreature.reset();
 						drawCreatureFromCurrentPopulation = true;
 						watchTime = 0.0f;
+						creaturePlaybackSpeed = 1.0f;
+						creaturePlaybackPaused = false;
+						world->accumulatedTime = 0.0f;
 						currentState = STATE_DRAW_CREATURE;
 					}
 
@@ -1263,8 +1322,8 @@ int main() {
 		case STATE_DRAW_CREATURE:
 			ClearBackground(world->backgroundColor);
 			auto creature = drawCreatureFromCurrentPopulation
-				? world->DrawCreatureCentered(selectedCurrentCreature)
-				: world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration);
+				? world->DrawCreatureCentered(selectedCurrentCreature, creaturePlaybackSpeed, creaturePlaybackPaused)
+				: world->DrawWithCreatureCentered(creatureIndexToBeDrawn, world->viewGeneration, creaturePlaybackSpeed, creaturePlaybackPaused);
 
 			DrawRectUI(absoluteWidth / 2, 16.0f, 800.0f, 180.0f, BLACK, UIAnchor::CenterHorizontal);
 			DrawRectUI(absoluteWidth / 2, 16.0f, 800.0f, 180.0f, WHITE, UIAnchor::CenterHorizontal, 3.0f);
@@ -1290,13 +1349,38 @@ int main() {
 				DrawTextUI(std::format("Seconds: {:.2f}", watchTime), absoluteWidth / 2, 128.0f, 1, WHITE, UIAnchor::CenterHorizontal);
 			}
 
-			watchTime += GetFrameTime();
+			if (!creaturePlaybackPaused) {
+				watchTime += GetFrameTime() * creaturePlaybackSpeed;
+			}
+
+			Button slowPlaybackButton(1204, absoluteWidth / 2 - 150, 650, 110, 48, "3/4x");
+			Button pausePlaybackButton(1205, absoluteWidth / 2, 650, 120, 48, creaturePlaybackPaused ? "Resume" : "Pause");
+			Button fastPlaybackButton(1206, absoluteWidth / 2 + 150, 650, 110, 48, "4/3x");
+			slowPlaybackButton.draw();
+			pausePlaybackButton.draw();
+			fastPlaybackButton.draw();
+			slowPlaybackButton.tick();
+			pausePlaybackButton.tick();
+			fastPlaybackButton.tick();
+			if (slowPlaybackButton.active) {
+				creaturePlaybackSpeed = std::max(0.05f, creaturePlaybackSpeed * 0.75f);
+			}
+			if (pausePlaybackButton.active) {
+				creaturePlaybackPaused = !creaturePlaybackPaused;
+			}
+			if (fastPlaybackButton.active) {
+				creaturePlaybackSpeed = std::min(64.0f, creaturePlaybackSpeed * (4.0f / 3.0f));
+			}
+			DrawTextUI(std::format("Playback: {:.2f}x", creaturePlaybackSpeed), absoluteWidth / 2, 610, 0.8f, WHITE, UIAnchor::Center);
 
 			Button creatureBackButton(998, absoluteWidth / 2, 720, 180, 56, "Back");
 			creatureBackButton.draw();
 			creatureBackButton.tick();
 			if (creatureBackButton.active) {
 				watchTime = 0.0f;
+				creaturePlaybackSpeed = 1.0f;
+				creaturePlaybackPaused = false;
+				world->accumulatedTime = 0.0f;
 				creature->reset();
 				currentState = drawCreatureFromCurrentPopulation ? STATE_VIEW_ALL : STATE_GAME;
 			}

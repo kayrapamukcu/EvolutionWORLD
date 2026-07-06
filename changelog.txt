@@ -32,7 +32,8 @@
 * (Code) Moved button/slider inactivity behavior to their respective classes
 * (Code) Added support for other operating systems with CMake
 
-
 06/07/2026:
-
 + Species graph added!
++ Can choose to save the species graph or not.
++ When viewing a creature, it is now possible to change the playback speed.
+* Fixed bugs

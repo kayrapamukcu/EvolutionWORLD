@@ -77,6 +77,15 @@ void SpeciesGraph::draw() const
 	int startGen = std::clamp(viewDataIndex - dataPoints / 2, 0, maxStartGen);
 	int endGen = startGen + dataPoints - 1;
 
+	std::string startLabel = std::format("{}", generationAt(startGen));
+	std::string endLabel = std::format("{}", generationAt(endGen));
+	float labelFontSize = UIFontSize(0.5f);
+	float labelSpacing = UISpacing(0.5f);
+	float startLabelWidth = MeasureTextEx(defaultFont, startLabel.c_str(), labelFontSize, labelSpacing).x;
+	float endLabelWidth = MeasureTextEx(defaultFont, endLabel.c_str(), labelFontSize, labelSpacing).x;
+	DrawTextEx(defaultFont, startLabel.c_str(), { plotLeft - startLabelWidth / 2.0f, graphRect.y + graphRect.height + 4.0f * UIScale() }, labelFontSize, labelSpacing, BLACK);
+	DrawTextEx(defaultFont, endLabel.c_str(), { plotLeft + plotWidth - endLabelWidth / 2.0f, graphRect.y + graphRect.height + 4.0f * UIScale() }, labelFontSize, labelSpacing, BLACK);
+
 	struct VisibleSpecies {
 		uint64_t key = 0;
 		int nodeCount = 0;
