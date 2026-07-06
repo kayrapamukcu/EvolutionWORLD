@@ -351,8 +351,8 @@ public:
 	bool generationInProgress = false;
 	int currentTicks = 0; // Shared with workers
 
-	PercentileGraph percentileGraph = PercentileGraph(600, 40, 400, 340);
-	SpeciesGraph speciesGraph = SpeciesGraph(600, 400, 400, 340);
+	PercentileGraph percentileGraph = PercentileGraph(600, 40, 400, 330);
+	SpeciesGraph speciesGraph = SpeciesGraph(600, 400, 400, 330);
 	inline static std::string worldName;
 	inline static uint32_t worldSeed;
 	inline static int ticksPerSecond = 100;
@@ -491,7 +491,7 @@ public:
 	void StartWorkerThreads();
 	void SendGenerationalDataToPercentileGraph();
 	void WorkerThread(int begin, int end);
-	void Save(std::atomic<bool>* workStarted = nullptr, int saveStartGeneration = -1, int saveEndGeneration = -1, bool savePercentileGraph = true);
+	void Save(std::atomic<bool>* workStarted = nullptr, int saveStartGeneration = -1, int saveEndGeneration = -1, bool savePercentileGraph = true, bool saveSpeciesGraph = true);
 	static bool Load();
 	static std::unique_ptr<World> LoadFromDialog(std::atomic<bool>* workStarted = nullptr);
 	Creature* DrawWithCreatureCentered(int index, int generation);

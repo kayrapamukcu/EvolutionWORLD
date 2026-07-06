@@ -10,6 +10,7 @@
 #include "World.h"
 #include "Slider.h"
 #include "UIElement.h"
+#include "tinyfiledialogs.h"
 #include <thread>
 #include <atomic>
 #include <chrono>
@@ -81,6 +82,33 @@ std::pair<Color,Color> getSpeciesColor(int nodeCount, int muscleCount)
 	speciesColorMap.emplace(key, newColorPair);
 
 	return newColorPair;
+}
+
+bool SaveCreatureToBinaryFile(const Creature& creature)
+{
+	const char* filters[] = { "*.CREATURE" };
+	std::string defaultName = std::format("Creature_{}.CREATURE", creature.id);
+	const char* path = tinyfd_saveFileDialog(
+		"Save creature as...",
+		defaultName.c_str(),
+		1,
+		filters,
+		"Creature files"
+	);
+
+	if (!path) {
+		return false;
+	}
+
+	std::ofstream out(path, std::ios::binary);
+	if (!out) {
+		PushNotice("Failed to save creature", 5.0f);
+		return false;
+	}
+
+	writeCreature(out, creature);
+	PushNotice("Creature saved", 2.0f);
+	return true;
 }
 
 void SaveAppSettings()
@@ -270,6 +298,7 @@ int main() {
 	int activeCreateRangeSlider = -1;
 	int activeCreateRangeHandle = -1;
 	bool saveIncludeGraph = true;
+	bool saveIncludeSpeciesGraph = true;
 	bool confirmLeaveWorld = false;
 	float watchTime = 0.0f;
 	bool doGenerationsNonstop = false;
@@ -464,10 +493,10 @@ int main() {
 			ingameUIElements.push_back(std::make_unique<Button>(2, 445, 720, 270, 64, "Save"));
 																			 
 			ingameUIElements.push_back(std::make_unique<Button>(3, 155, 620, 270, 64, "Next Generation"));
-			ingameUIElements.push_back(std::make_unique<Button>(4, 445, 620, 270, 64, "Do Gens Continuously"));
+			ingameUIElements.push_back(std::make_unique<Button>(4, 445, 620, 270, 64, "Do Gens Nonstop"));
 			
 			ingameUIElements.push_back(std::make_unique<Button>(5, 155, 520, 270, 64, "View All Creatures"));
-			ingameUIElements.push_back(std::make_unique<Button>(6, 445, 520, 270, 64, "Watch Best Creature"));
+			ingameUIElements.push_back(std::make_unique<Button>(6, 445, 520, 270, 64, "Watch Best Crtr."));
 			
 			ingameUIElements.push_back(std::make_unique<Slider>(200, 270, 360, 500, 80, "View Generation", 0, 0, 0));
 
@@ -847,17 +876,20 @@ int main() {
 				DrawTextUI(std::format("No data for generations {} to {}", saveStartGeneration, saveEndGeneration), absoluteWidth / 2, 505, 0.8f, RED, UIAnchor::Center);
 			}
 
-			Button graphToggleButton(1200, absoluteWidth / 2, 575, 480, 56, saveIncludeGraph ? "Save Percentile Graph: Yes" : "Save Percentile Graph: No");
+			Button graphToggleButton(1200, absoluteWidth / 2, 555, 480, 48, saveIncludeGraph ? "Save Percentile Graph: Yes" : "Save Percentile Graph: No");
+			Button speciesGraphToggleButton(1203, absoluteWidth / 2, 610, 480, 48, saveIncludeSpeciesGraph ? "Save Species Graph: Yes" : "Save Species Graph: No");
 			Button saveButton(1201, absoluteWidth / 2 + 150, 680, 240, 64, "Save");
 			Button backButton(1202, absoluteWidth / 2 - 150, 680, 240, 64, "Back");
 			saveButton.enabled = saveRangeHasData;
 
 			graphToggleButton.draw();
+			speciesGraphToggleButton.draw();
 			saveButton.draw();
 			backButton.draw();
 
 			if (!saveInProgress) {
 				graphToggleButton.tick();
+				speciesGraphToggleButton.tick();
 				saveButton.tick();
 				backButton.tick();
 			}
@@ -865,14 +897,18 @@ int main() {
 			if (graphToggleButton.active) {
 				saveIncludeGraph = !saveIncludeGraph;
 			}
+			if (speciesGraphToggleButton.active) {
+				saveIncludeSpeciesGraph = !saveIncludeSpeciesGraph;
+			}
 			if (saveButton.active && saveRangeHasData) {
 				saveInProgress = true;
 				saveWorkStarted.store(false);
 				int startToSave = saveStartGeneration;
 				int endToSave = saveEndGeneration;
-				bool includeGraph = saveIncludeGraph;
-				saveFuture = std::async(std::launch::async, [worldPtr = world.get(), &saveWorkStarted, startToSave, endToSave, includeGraph] {
-					worldPtr->Save(&saveWorkStarted, startToSave, endToSave, includeGraph);
+				bool includePercentileGraph = saveIncludeGraph;
+				bool includeSpeciesGraph = saveIncludeSpeciesGraph;
+				saveFuture = std::async(std::launch::async, [worldPtr = world.get(), &saveWorkStarted, startToSave, endToSave, includePercentileGraph, includeSpeciesGraph] {
+					worldPtr->Save(&saveWorkStarted, startToSave, endToSave, includePercentileGraph, includeSpeciesGraph);
 					});
 			}
 			if (backButton.active) {
@@ -967,7 +1003,7 @@ int main() {
 			}
 
 			for (int i = 0; i < ingameUIElements.size(); i++) {
-				ingameUIElements[i]->enabled = !(ingameUIElements[i]->elementID == 8 && !canViewAllCreatures);
+				ingameUIElements[i]->enabled = !(ingameUIElements[i]->elementID == 5 && !canViewAllCreatures);
 				ingameUIElements[i]->tick();
 				ingameUIElements[i]->draw();
 				if (ingameUIElements[i]->active && !confirmLeaveWorld && !doGenerationsNonstop && !world->IsGenerationInProgress() && !saveInProgress) {
@@ -987,6 +1023,7 @@ int main() {
 							saveEndGeneration = world->GetLastHistoryGeneration();
 						}
 						saveIncludeGraph = true;
+						saveIncludeSpeciesGraph = true;
 						activeSaveRangeHandle = -1;
 						currentState = STATE_SAVE;
 						break;
@@ -1269,6 +1306,7 @@ int main() {
 			}
 
 			if (IsKeyPressed(KEY_V)) world->printCreature(*creature);
+			if (IsKeyPressed(KEY_C)) SaveCreatureToBinaryFile(*creature);
 
 			break;
 		}

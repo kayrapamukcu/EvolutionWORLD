@@ -430,7 +430,7 @@ static SpeciesGraph SliceSpeciesGraph(const SpeciesGraph& source, int startGener
     return result;
 }
 
-void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int saveEndGeneration, bool savePercentileGraph)
+void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int saveEndGeneration, bool savePercentileGraph, bool saveSpeciesGraph)
 {
     // new file
     const char* filters[] = { "*.WORLD" };
@@ -516,7 +516,7 @@ void World::Save(std::atomic<bool>* workStarted, int saveStartGeneration, int sa
         averageGenerationalCreaturesSnapshot = SliceCreatureHistory(averageGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
         bestGenerationalCreaturesSnapshot = SliceCreatureHistory(bestGenerationalCreatures, storedHistoryGenerationsSnapshot, historyStartGenerationSnapshot, historyEndGenerationSnapshot);
         percentileGraphSnapshot = SlicePercentileGraph(percentileGraph, historyStartGenerationSnapshot, historyEndGenerationSnapshot, savePercentileGraph);
-        speciesGraphSnapshot = SliceSpeciesGraph(speciesGraph, historyStartGenerationSnapshot, historyEndGenerationSnapshot, savePercentileGraph);
+        speciesGraphSnapshot = SliceSpeciesGraph(speciesGraph, historyStartGenerationSnapshot, historyEndGenerationSnapshot, saveSpeciesGraph);
     }
 
     try {

@@ -26,7 +26,13 @@
 05/07/2026:
 + New view all creatures button!
 + Completely revamped saving: can choose ranges of generations to save
-* Fixed bugs
-* (Code) Moved button/slider inactivity behavior to their respective classes
 + Species other than triangles finally added! They're also color coded.
 + Changed mutations; can now mutate new nodes/muscles
+* Fixed bugs
+* (Code) Moved button/slider inactivity behavior to their respective classes
+* (Code) Added support for other operating systems with CMake
+
+
+06/07/2026:
+
++ Species graph added!

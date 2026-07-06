@@ -92,10 +92,12 @@ void Creature::initializeChild(Creature* parent)
 {
     id = idCounter++;
 
+	float mutatedNode = 1.0f; // used to increase the chance of muscle mutation if a node mutation occurs
     int childNodeCount = parent->nodeCount;
     if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance * world->mutabilityFactor) {
         const int delta = RNG::biasedLowerInt(1, 5, 0.75f);
         childNodeCount += RNG::randomInt(0, 1) == 0 ? -delta : delta;
+        mutatedNode = 5.0f;
     }
 
     childNodeCount = std::clamp(childNodeCount, world->minNodes, world->maxNodes);
@@ -107,7 +109,7 @@ void Creature::initializeChild(Creature* parent)
     const int maxMuscles = std::clamp(world->maxMuscles, minMuscles, maxStorableMuscles);
 
     int childMuscleCount = parent->muscleCount;
-    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance * world->mutabilityFactor) {
+    if (RNG::randomFloat(0.0f, 1.0f) < world->structuralMutationChance * world->mutabilityFactor * mutatedNode) {
         const int delta = RNG::biasedLowerInt(1, 5, 0.75f);
         childMuscleCount += RNG::randomInt(0, 1) == 0 ? -delta : delta;
     }
