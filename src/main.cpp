@@ -955,7 +955,7 @@ int main() {
 				}
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->minVal = firstHistoryGeneration;
 				dynamic_cast<Slider*>(ingameUIElements[7].get())->maxVal = lastHistoryGeneration;
-				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = currentGeneration;
+				dynamic_cast<Slider*>(ingameUIElements[7].get())->curVal = std::clamp(currentGeneration, firstHistoryGeneration, lastHistoryGeneration);
 
 				if (doGenerationsNonstop) {
 					double now = GetTime();
@@ -969,27 +969,23 @@ int main() {
 			}
 
 			{
-				std::unique_lock<std::mutex> dataLock(world->dataMutex, std::try_to_lock);
-				if (dataLock.owns_lock()) {
-					int viewHistoryIndex = world->GetHistoryIndexForGeneration(world->viewGeneration);
-					viewHistoryIndex = std::clamp(viewHistoryIndex, 0, std::max(0, (int)world->worstGenerationalCreatures.size() - 1));
-					bool viewGenerationHasData = world->HasHistoryDataForGeneration(world->viewGeneration);
-					DrawTextUI("World \"" + world->worldName + "\", seed " + std::to_string(world->worldSeed), 20, 36, 1, BLACK);
-					DrawTextUI("Generation: " + std::to_string(world->generation), 20, 72, 2, BLACK);
-					if (viewGenerationHasData) {
-						DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 160, 1, BLACK);
-						DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 200, 1, BLACK);
-						DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 240, 1, BLACK);
-					}
+				std::lock_guard<std::mutex> dataLock(world->dataMutex);
+				int viewHistoryIndex = world->GetHistoryIndexForGeneration(world->viewGeneration);
+				viewHistoryIndex = std::clamp(viewHistoryIndex, 0, std::max(0, (int)world->worstGenerationalCreatures.size() - 1));
+				bool viewGenerationHasData = world->HasHistoryDataForGeneration(world->viewGeneration);
+				DrawTextUI("World \"" + world->worldName + "\", seed " + std::to_string(world->worldSeed), 20, 36, 1, BLACK);
+				DrawTextUI("Generation: " + std::to_string(world->generation), 20, 72, 2, BLACK);
+				if (viewGenerationHasData) {
+					DrawTextUI(std::format("Worst fitness: {:.2f} meters", world->worstGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 160, 1, BLACK);
+					DrawTextUI(std::format("Average fitness: {:.2f} meters", world->averageGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 200, 1, BLACK);
+					DrawTextUI(std::format("Best fitness: {:.2f} meters", world->bestGenerationalCreatures[viewHistoryIndex].fitness / 100), 18, 240, 1, BLACK);
 				}
 			}
 
 			{
-				std::unique_lock<std::mutex> dataLock(world->dataMutex, std::try_to_lock);
-				if (dataLock.owns_lock()) {
-					world->percentileGraph.draw();
-					world->speciesGraph.draw();
-				}
+				std::lock_guard<std::mutex> dataLock(world->dataMutex);
+				world->percentileGraph.draw();
+				world->speciesGraph.draw();
 			}
 
 			bool canViewAllCreatures = false;

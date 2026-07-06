@@ -9,9 +9,15 @@ void Slider::draw()
 
 	float sliderStart = drawRect.x + (NUB_WIDTH * UIScale()) * 0.5f;
 	float sliderEnd = drawRect.x + drawRect.width - (NUB_WIDTH * UIScale()) * 0.5f;
-	const int valueRange = std::max(1, maxVal - minVal);
+	curVal = std::clamp(curVal, minVal, maxVal);
+	const int valueRange = maxVal - minVal;
 
-	sliderPos = sliderStart + static_cast<float>(curVal - minVal) / valueRange * (sliderEnd - sliderStart);
+	if (valueRange <= 0) {
+		sliderPos = sliderStart;
+	}
+	else {
+		sliderPos = sliderStart + static_cast<float>(curVal - minVal) / valueRange * (sliderEnd - sliderStart);
+	}
 
 	DrawRectangle(
 		sliderPos - NUB_WIDTH * UIScale() * 0.5f + UIScale(),
@@ -60,7 +66,14 @@ void Slider::tick()
 	float sliderStart = drawRect.x + (NUB_WIDTH * UIScale()) * 0.5f;
 	float sliderEnd = drawRect.x + drawRect.width - (NUB_WIDTH * UIScale()) * 0.5f;
 	float xClicked = std::clamp(mouseX, sliderStart, sliderEnd);
-	const int valueRange = std::max(1, maxVal - minVal);
+	curVal = std::clamp(curVal, minVal, maxVal);
+	const int valueRange = maxVal - minVal;
+	if (valueRange <= 0) {
+		curVal = minVal;
+		active = false;
+		precise = false;
+		return;
+	}
 	
 	if (precise) {
 		if (GetTime() - lastAdjustmentTime < 0.1) {
