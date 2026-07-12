@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include "Creature.h"
 #include "raylib.h"
@@ -254,12 +255,14 @@ int main() {
 	std::vector<std::unique_ptr<UIElement>> createMenuUIElements;
 	std::vector<std::unique_ptr<UIElement>> ingameUIElements;
 	std::vector<std::unique_ptr<UIElement>> settingsUIElements;
-
 	LoadAppSettings();
 	
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
 	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 	InitWindow(screenWidth, screenHeight, "EvolutionWORLD");
+
+	SetExitKey(KEY_NULL);
+
 	ApplyFullscreenSetting();
 
 	SetTargetFPS(FRAMES_PER_SECOND);
@@ -552,6 +555,11 @@ int main() {
 			UpdateMusicStream(musicMenu);
 		}
 		SetMusicVolume(musicMenu, appSettings.musicVolume / 100.0f);
+
+		if (IsKeyPressed(KEY_F11)) {
+			appSettings.fullscreen = !appSettings.fullscreen;
+			ApplyFullscreenSetting();
+		}
 
 		if (saveInProgress && saveFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
 			saveFuture.get();

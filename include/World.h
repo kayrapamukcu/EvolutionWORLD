@@ -382,8 +382,8 @@ public:
 		ticksPerSecond = 100;
 		secondsPerSimulation = 15;
 		numOfCreatures = 1000;
-		minNodes = 4;
-		maxNodes = 10;
+		minNodes = 3;
+		maxNodes = 15;
 		minMuscles = minNodes;
 		maxMuscles = maxNodes * (maxNodes - 1) / 2;
 		mutabilityRange = 1.0f;
@@ -412,10 +412,10 @@ public:
 		worldSeed = returnRandomWorldSeed(s); // Convert hex string to unsigned long long
 		secondsPerSimulation = sps;
 		numOfCreatures = nc;
-		minNodes = std::clamp(minNodeCount, 3, 15);
-		maxNodes = std::clamp(maxNodeCount, minNodes, 15);
-		minMuscles = std::clamp(minMuscleCount, minNodes, minNodes * (minNodes - 1) / 2);
-		maxMuscles = std::clamp(maxMuscleCount, minMuscles, maxNodes * (maxNodes - 1) / 2);
+		minNodes = minNodeCount;
+		maxNodes = maxNodeCount;
+		minMuscles = minMuscleCount;
+		maxMuscles = maxMuscleCount;
 		mutabilityRange = (float)mr / 100;
 		mutabilityFactor = (float)mf / 100;
 		drawSpeedMult = 1.6666666f;
