@@ -1,6 +1,6 @@
 #include "Creature.h"
 #include "RNG.h"
-#include "Raylib.h"
+#include "raylib.h"
 #include "World.h"
 
 #include <iostream>
