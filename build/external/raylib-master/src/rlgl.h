@@ -632,6 +632,8 @@ RLAPI void rlColor4f(float x, float y, float z, float w); // Define one vertex (
 // some of them are direct wrappers over OpenGL calls, some others are custom
 //------------------------------------------------------------------------------------
 
+RLAPI bool rlIsTextureNPOTSupported(void);
+
 // Vertex buffers state
 RLAPI bool rlEnableVertexArray(unsigned int vaoId);     // Enable vertex array (VAO, if supported)
 RLAPI void rlDisableVertexArray(void);                  // Disable vertex array (VAO, if supported)
@@ -2408,6 +2410,155 @@ void rlLoadExtensions(void *loader)
     if (gladLoadGL((GLADloadfunc)loader) == 0) TRACELOG(RL_LOG_WARNING, "GLAD: Cannot load OpenGL extensions");
     else TRACELOG(RL_LOG_INFO, "GLAD: OpenGL extensions loaded successfully");
 
+#if defined(GRAPHICS_API_OPENGL_21)
+    // OpenGL 2.1 does not contain framebuffer objects in core.
+    // Older drivers expose them through GL_EXT_framebuffer_object instead.
+    //
+    // GLAD attempts to load the unsuffixed OpenGL 3.0 entry points:
+    //     glGenFramebuffers
+    //
+    // On extension-only drivers, load:
+    //     glGenFramebuffersEXT
+    //
+    // into the same GLAD function pointers so the rest of rlgl does not
+    // need separate EXT-specific code paths.
+
+    rlglLoadProc loadProc = (rlglLoadProc)loader;
+    bool usedExtFramebufferFallback = false;
+
+#define RL_LOAD_EXT_FALLBACK(coreFunction, functionType, extensionName) \
+        do                                                                 \
+        {                                                                  \
+            if ((coreFunction) == NULL)                                    \
+            {                                                              \
+                (coreFunction) =                                           \
+                    (functionType)loadProc(extensionName);                  \
+                                                                           \
+                if ((coreFunction) != NULL)                                \
+                {                                                          \
+                    usedExtFramebufferFallback = true;                     \
+                }                                                          \
+            }                                                              \
+        } while (0)
+
+    // Framebuffer object functions
+    RL_LOAD_EXT_FALLBACK(
+        glGenFramebuffers,
+        PFNGLGENFRAMEBUFFERSPROC,
+        "glGenFramebuffersEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glBindFramebuffer,
+        PFNGLBINDFRAMEBUFFERPROC,
+        "glBindFramebufferEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glGetFramebufferAttachmentParameteriv,
+        PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC,
+        "glGetFramebufferAttachmentParameterivEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glDeleteFramebuffers,
+        PFNGLDELETEFRAMEBUFFERSPROC,
+        "glDeleteFramebuffersEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glCheckFramebufferStatus,
+        PFNGLCHECKFRAMEBUFFERSTATUSPROC,
+        "glCheckFramebufferStatusEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glFramebufferTexture2D,
+        PFNGLFRAMEBUFFERTEXTURE2DPROC,
+        "glFramebufferTexture2DEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glFramebufferRenderbuffer,
+        PFNGLFRAMEBUFFERRENDERBUFFERPROC,
+        "glFramebufferRenderbufferEXT"
+    );
+
+    // Renderbuffer object functions
+    RL_LOAD_EXT_FALLBACK(
+        glGenRenderbuffers,
+        PFNGLGENRENDERBUFFERSPROC,
+        "glGenRenderbuffersEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glBindRenderbuffer,
+        PFNGLBINDRENDERBUFFERPROC,
+        "glBindRenderbufferEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glDeleteRenderbuffers,
+        PFNGLDELETERENDERBUFFERSPROC,
+        "glDeleteRenderbuffersEXT"
+    );
+
+    RL_LOAD_EXT_FALLBACK(
+        glRenderbufferStorage,
+        PFNGLRENDERBUFFERSTORAGEPROC,
+        "glRenderbufferStorageEXT"
+    );
+
+    // Used when generating mipmaps for textures/render textures
+    RL_LOAD_EXT_FALLBACK(
+        glGenerateMipmap,
+        PFNGLGENERATEMIPMAPPROC,
+        "glGenerateMipmapEXT"
+    );
+
+#undef RL_LOAD_EXT_FALLBACK
+
+    // Basic RenderTexture2D requires this entire function set.
+    bool framebufferFunctionsLoaded =
+        (glGenFramebuffers != NULL) &&
+        (glBindFramebuffer != NULL) &&
+        (glDeleteFramebuffers != NULL) &&
+        (glCheckFramebufferStatus != NULL) &&
+		(glGetFramebufferAttachmentParameteriv != NULL) &&
+        (glFramebufferTexture2D != NULL) &&
+        (glFramebufferRenderbuffer != NULL) &&
+        (glGenRenderbuffers != NULL) &&
+        (glBindRenderbuffer != NULL) &&
+        (glDeleteRenderbuffers != NULL) &&
+        (glRenderbufferStorage != NULL);
+
+    if (framebufferFunctionsLoaded)
+    {
+        if (usedExtFramebufferFallback)
+        {
+            TRACELOG(
+                RL_LOG_INFO,
+                "GL: Using GL_EXT_framebuffer_object compatibility entry points"
+            );
+        }
+        else
+        {
+            TRACELOG(
+                RL_LOG_INFO,
+                "GL: Core framebuffer object entry points loaded"
+            );
+        }
+    }
+    else
+    {
+        TRACELOG(
+            RL_LOG_WARNING,
+            "GL: Framebuffer object functions are incomplete; "
+            "RenderTexture2D is unavailable"
+        );
+    }
+#endif // GRAPHICS_API_OPENGL_21
+
     // Get number of supported extensions
     GLint numExt = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
@@ -4034,6 +4185,16 @@ void rlUpdateVertexBufferElements(unsigned int id, const void *data, int dataSiz
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, id);
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, dataSize, data);
+#endif
+}
+
+bool rlIsTextureNPOTSupported(void)
+{
+#if defined(GRAPHICS_API_OPENGL_33) || \
+    defined(GRAPHICS_API_OPENGL_ES2)
+    return RLGL.ExtSupported.texNPOT;
+#else
+    return false;
 #endif
 }
 

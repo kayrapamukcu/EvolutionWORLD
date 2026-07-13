@@ -39,6 +39,8 @@ inline void ClearNotices()
 	notices.clear();
 }
 
+inline bool use_POT_textures = false;
+
 inline unsigned int numberOfThreads = 1;
 inline unsigned int hardwareThreadCount = 1;
 
@@ -93,6 +95,7 @@ float UISpacing(float fontScale);
 Vector2 MeasureUIText(const std::string& text, float fontScale);
 
 void DrawTextUI(const std::string& text, float x, float y, float fontScale, Color color, UIAnchor anchor = UIAnchor::TopLeft);
+int NextPowerOfTwo(int value);
 void DrawGradientText(const std::string& text, Vector2 position, float fontSize, float spacing, Color color1, Color color2);
 void ClearGradientTextCache();
 Rectangle DrawRectUI(float x, float y, float width, float height, Color color, UIAnchor anchor = UIAnchor::TopLeft, float lineThickness = 0.0f);

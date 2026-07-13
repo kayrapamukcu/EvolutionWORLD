@@ -6,8 +6,6 @@
 #include <string>
 #include <unordered_map>
 
-
-
 #include "rlgl.h"
 
 Font defaultFont;
@@ -82,41 +80,158 @@ void DrawTextUI(const std::string& text, float x, float y, float fontScale, Colo
 	DrawTextEx(defaultFont, text.c_str(), position, UIFontSize(fontScale), UISpacing(fontScale), color);
 }
 
-void DrawGradientText(const std::string& text, Vector2 position, float fontSize, float spacing, Color color1, Color color2)
+int NextPowerOfTwo(int value)
 {
-	Vector2 textSize = MeasureTextEx(defaultFont, text.c_str(), fontSize, spacing);
-	const int textureWidth = (int)std::ceil(textSize.x);
-	const int textureHeight = (int)std::ceil(textSize.y);
+    if (value <= 1) return 1;
 
-	if (textureWidth <= 0 || textureHeight <= 0) {
-		return;
-	}
+    value--;
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
 
-	const std::string cacheKey = MakeGradientTextCacheKey(text, fontSize, spacing, color1, color2, textureWidth, textureHeight);
-	auto it = gradientTextCache.find(cacheKey);
-	if (it == gradientTextCache.end()) {
-		RenderTexture2D textMask = LoadRenderTexture(textureWidth, textureHeight);
-		RenderTexture2D gradientText = LoadRenderTexture(textureWidth, textureHeight);
+    return value + 1;
+}
 
-		BeginTextureMode(textMask);
-		ClearBackground(BLANK);
-		DrawTextEx(defaultFont, text.c_str(), { 0.0f, 0.0f }, fontSize, spacing, WHITE);
-		EndTextureMode();
+void DrawGradientText(
+    const std::string& text,
+    Vector2 position,
+    float fontSize,
+    float spacing,
+    Color color1,
+    Color color2)
+{
+    Vector2 textSize = MeasureTextEx(
+        defaultFont,
+        text.c_str(),
+        fontSize,
+        spacing
+    );
 
-		BeginTextureMode(gradientText);
-		ClearBackground(BLANK);
-		DrawRectangleGradientV(0, 0, textureWidth, textureHeight, color2, color1);
-		rlSetBlendFactorsSeparate(RL_ZERO, RL_ONE, RL_ZERO, RL_SRC_ALPHA, RL_FUNC_ADD, RL_FUNC_ADD);
-		BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-		DrawTextureRec(textMask.texture, { 0.0f, 0.0f, (float)textureWidth, -(float)textureHeight }, { 0.0f, 0.0f }, WHITE);
-		EndBlendMode();
-		EndTextureMode();
+    // Actual region occupied by the text.
+    const int contentWidth = (int)std::ceil(textSize.x);
+    const int contentHeight = (int)std::ceil(textSize.y);
 
-		it = gradientTextCache.emplace(cacheKey, GradientTextCacheEntry{ gradientText, textMask, textureWidth, textureHeight }).first;
-	}
+    if (contentWidth <= 0 || contentHeight <= 0)
+    {
+        return;
+    }
 
-	const GradientTextCacheEntry& cachedText = it->second;
-	DrawTextureRec(cachedText.texture.texture, { 0.0f, 0.0f, (float)cachedText.width, -(float)cachedText.height }, position, WHITE);
+    // Physical texture dimensions.
+    const int textureWidth = use_POT_textures
+        ? NextPowerOfTwo(contentWidth)
+        : contentWidth;
+
+    const int textureHeight = use_POT_textures
+        ? NextPowerOfTwo(contentHeight)
+        : contentHeight;
+
+    // Include the physical dimensions so switching POT mode cannot reuse
+    // an incompatible cached render texture.
+    const std::string cacheKey = MakeGradientTextCacheKey(
+        text,
+        fontSize,
+        spacing,
+        color1,
+        color2,
+        textureWidth,
+        textureHeight
+    );
+
+    auto it = gradientTextCache.find(cacheKey);
+
+    if (it == gradientTextCache.end())
+    {
+        RenderTexture2D textMask =
+            LoadRenderTexture(textureWidth, textureHeight);
+
+        RenderTexture2D gradientText =
+            LoadRenderTexture(textureWidth, textureHeight);
+
+        BeginTextureMode(textMask);
+        ClearBackground(BLANK);
+
+        DrawTextEx(
+            defaultFont,
+            text.c_str(),
+            { 0.0f, 0.0f },
+            fontSize,
+            spacing,
+            WHITE
+        );
+
+        EndTextureMode();
+
+        BeginTextureMode(gradientText);
+        ClearBackground(BLANK);
+
+        // Only draw over the portion actually occupied by the text.
+        DrawRectangleGradientV(
+            0,
+            0,
+            contentWidth,
+            contentHeight,
+            color2,
+            color1
+        );
+
+        rlSetBlendFactorsSeparate(
+            RL_ZERO,
+            RL_ONE,
+            RL_ZERO,
+            RL_SRC_ALPHA,
+            RL_FUNC_ADD,
+            RL_FUNC_ADD
+        );
+
+        BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+
+        // Sample only the logical content region, not the POT padding.
+        DrawTextureRec(
+            textMask.texture,
+            {
+                0.0f,
+                (float)(textureHeight - contentHeight),
+                (float)contentWidth,
+                -(float)contentHeight
+            },
+            { 0.0f, 0.0f },
+            WHITE
+        );
+
+        EndBlendMode();
+        EndTextureMode();
+
+        it = gradientTextCache.emplace(
+            cacheKey,
+            GradientTextCacheEntry{
+                gradientText,
+                textMask,
+                contentWidth,
+                contentHeight
+            }
+        ).first;
+    }
+
+    const GradientTextCacheEntry& cachedText = it->second;
+
+    // cachedText.width/height remain the logical dimensions, so the
+    // transparent POT padding is not drawn.
+    DrawTextureRec(
+        cachedText.texture.texture,
+        {
+            0.0f,
+            (float)(
+                cachedText.texture.texture.height -
+                cachedText.height
+            ),
+            (float)cachedText.width,
+            -(float)cachedText.height
+        },
+        position,
+        WHITE
+    );
 }
 
 void ClearGradientTextCache()

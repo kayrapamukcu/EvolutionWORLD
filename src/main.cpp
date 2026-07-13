@@ -21,6 +21,8 @@
 #include <fstream>
 #include <cstdint>
 #include <cmath>
+#include <unordered_map>
+#include <rlgl.h>
 
 float guiScalePrev = 1.0f;
 std::unique_ptr<World> world;
@@ -260,6 +262,9 @@ int main() {
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
 	SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 	InitWindow(screenWidth, screenHeight, "EvolutionWORLD");
+
+	std::cout << "NPOT texture support: " << (rlIsTextureNPOTSupported() ? "Yes" : "No") << std::endl;
+	use_POT_textures = !rlIsTextureNPOTSupported();
 
 	SetExitKey(KEY_NULL);
 
